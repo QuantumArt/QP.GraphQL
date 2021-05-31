@@ -1,4 +1,5 @@
-﻿using Npgsql;
+﻿using Microsoft.Extensions.Logging;
+using Npgsql;
 using QP.GraphQL.Interfaces.Articles;
 using QP.GraphQL.Interfaces.Articles.Filtering;
 using QP.GraphQL.Interfaces.Articles.Paging;
@@ -14,12 +15,14 @@ namespace QP.GraphQL.DAL.Postgresql
 {
     public class QpArticlesAccessor : IQpArticlesAccessor
     {
-        public QpArticlesAccessor(NpgsqlConnection connection)
+        public QpArticlesAccessor(NpgsqlConnection connection, ILogger<QpArticlesAccessor> logger)
         {
             Connection = connection;
+            Logger = logger;
         }
 
         public NpgsqlConnection Connection { get; }
+        protected ILogger<QpArticlesAccessor> Logger { get; private set; }
 
         public async Task<QpArticle> GetArticleById(int contentId, int articleId)
         {
@@ -33,7 +36,8 @@ namespace QP.GraphQL.DAL.Postgresql
 
             using (var reader = await command.ExecuteReaderAsync())
             {
-                var result = ParseQpArticleReader(reader, contentId);
+                Logger.LogInformation("Make query {db_query}", command.CommandText);
+                var result = ParseQpArticleReader(reader, contentId);                
                 return result.Any() ? result[0] : null;
             }
         }
@@ -53,6 +57,7 @@ namespace QP.GraphQL.DAL.Postgresql
 
             using (var reader = await command.ExecuteReaderAsync())
             {
+                Logger.LogInformation("Make query {db_query}", command.CommandText);
                 return ParseQpArticleReader(reader, contentId).ToDictionary(a => a.Id);
             }
         }
@@ -81,6 +86,7 @@ namespace QP.GraphQL.DAL.Postgresql
 
             using (var reader = await command.ExecuteReaderAsync())
             {
+                Logger.LogInformation("Make query {db_query}", command.CommandText);
                 return ParseReaderForM2mLookup(reader, contentId);
             }
         }
@@ -153,6 +159,7 @@ namespace QP.GraphQL.DAL.Postgresql
 
             using (var reader = await command.ExecuteReaderAsync())
             {
+                Logger.LogInformation("Make query {db_query}", command.CommandText);
                 var result = new RelayPaginationResult
                 {
                     TotalCount = totalCount,

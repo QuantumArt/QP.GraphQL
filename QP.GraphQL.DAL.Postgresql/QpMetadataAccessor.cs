@@ -1,4 +1,5 @@
 ﻿using Dapper;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using QP.GraphQL.Interfaces.Metadata;
 using System;
@@ -11,12 +12,14 @@ namespace QP.GraphQL.DAL.Postgresql
 {
     public class QpMetadataAccessor : IQpMetadataAccessor
     {
-        public QpMetadataAccessor(NpgsqlConnection connection)
+        public QpMetadataAccessor(NpgsqlConnection connection, ILogger<QpMetadataAccessor> logger)
         {
             Connection = connection;
+            Logger = logger;
         }
-
+        
         public NpgsqlConnection Connection { get; }
+        protected ILogger<QpMetadataAccessor> Logger { get; private set; }
 
         public async Task<IDictionary<int, QpContentMetadata>> GetContentsMetadata(IEnumerable<int> contentIds)
         {
@@ -46,6 +49,8 @@ namespace QP.GraphQL.DAL.Postgresql
                 ";
 
             var contentAttributesRaw = Connection.Query<QpContentAttributeMetadataInternal>(query).ToList();
+            Logger.LogInformation("Make query {db_query}", query);
+
 
             var result = new Dictionary<int, QpContentMetadata>();
             foreach (var contentAttributeRaw in contentAttributesRaw)
