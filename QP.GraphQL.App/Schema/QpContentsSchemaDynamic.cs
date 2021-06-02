@@ -63,7 +63,11 @@ namespace QP.GraphQL.App.Schema
 
                 //создаём input-тип, который будет использоваться для задания фильтра по статьям этого типа
                 //также нам понадобится словарь, чтобы потом в резолверах расшифровать все эти фильтры, к каким полям они относятся и какую операцию в себе несут
-                var filterType = new InputObjectGraphType<object>();
+                var filterType = new InputObjectGraphType<object>()
+                {
+                    Name = $"FilterFor{graphType.Name}",
+                    Description = $"Filter object for content type {graphType.Name}"
+                };
                 var filterDefinitions = new Dictionary<string, QpFieldFilterDefinition>();
                 foreach (var attribute in contentMeta.Attributes)
                 {
