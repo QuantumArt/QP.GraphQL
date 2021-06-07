@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\QP.GraphQL.DAL.Postgresql\QP.GraphQL.DAL.Postgresql.csproj" />
+    <ProjectReference Include="..\QP.GraphQL.DAL\QP.GraphQL.DAL.csproj" />
     <ProjectReference Include="..\QP.GraphQL.Interfaces\QP.GraphQL.Interfaces.csproj" />
   </ItemGroup>
   

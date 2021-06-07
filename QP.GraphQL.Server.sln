@@ -5,9 +5,9 @@ VisualStudioVersion = 16.0.30711.63
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "QP.GraphQL.App", "QP.GraphQL.App\QP.GraphQL.App.csproj", "{9C71D60C-C132-4AE8-B51C-98B86D9BA076}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QP.GraphQL.Interfaces", "QP.GraphQL.Interfaces\QP.GraphQL.Interfaces.csproj", "{5604E96C-E02C-486F-A5FB-92EAABCFB055}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "QP.GraphQL.Interfaces", "QP.GraphQL.Interfaces\QP.GraphQL.Interfaces.csproj", "{5604E96C-E02C-486F-A5FB-92EAABCFB055}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QP.GraphQL.DAL.Postgresql", "QP.GraphQL.DAL.Postgresql\QP.GraphQL.DAL.Postgresql.csproj", "{5FD1D60E-BD26-4C2A-91E6-CB00CFE63B54}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "QP.GraphQL.DAL", "QP.GraphQL.DAL\QP.GraphQL.DAL.csproj", "{5FD1D60E-BD26-4C2A-91E6-CB00CFE63B54}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

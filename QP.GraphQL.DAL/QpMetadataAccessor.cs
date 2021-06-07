@@ -1,24 +1,24 @@
 ﻿using Dapper;
 using Microsoft.Extensions.Logging;
-using Npgsql;
 using QP.GraphQL.Interfaces.Metadata;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.Common;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace QP.GraphQL.DAL.Postgresql
+namespace QP.GraphQL.DAL
 {
     public class QpMetadataAccessor : IQpMetadataAccessor
     {
-        public QpMetadataAccessor(NpgsqlConnection connection, ILogger<QpMetadataAccessor> logger)
+        public QpMetadataAccessor(DbConnection connection, ILogger<QpMetadataAccessor> logger)
         {
             Connection = connection;
             Logger = logger;
         }
         
-        public NpgsqlConnection Connection { get; }
+        public DbConnection Connection { get; }
         protected ILogger<QpMetadataAccessor> Logger { get; private set; }
 
         public async Task<IDictionary<int, QpContentMetadata>> GetContentsMetadata(IEnumerable<int> contentIds)
@@ -49,8 +49,6 @@ namespace QP.GraphQL.DAL.Postgresql
                 ";
 
             var contentAttributesRaw = Connection.Query<QpContentAttributeMetadataInternal>(query).ToList();
-            Logger.LogInformation("Make query {db_query}", query);
-
 
             var result = new Dictionary<int, QpContentMetadata>();
             foreach (var contentAttributeRaw in contentAttributesRaw)

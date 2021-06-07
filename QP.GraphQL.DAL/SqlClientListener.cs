@@ -3,7 +3,7 @@ using System;
 using System.Diagnostics.Tracing;
 using System.Linq;
 
-namespace QP.GraphQL.DAL.Postgresql
+namespace QP.GraphQL.DAL
 {
     public class SqlClientListener : EventListener
     {
@@ -17,7 +17,7 @@ namespace QP.GraphQL.DAL.Postgresql
         }
 
         protected override void OnEventSourceCreated(EventSource eventSource)
-        {            
+        {
             if (_eventSources.Contains(eventSource.Name))
             {
                 EnableEvents(eventSource, EventLevel.LogAlways, DataBase);
@@ -32,7 +32,7 @@ namespace QP.GraphQL.DAL.Postgresql
                 {
                     Id = eventData.EventId,
                     EventSource = eventData.EventSource.Name,
-                    Query = eventData.Payload[0]
+                    Query = eventData.Payload[0].ToString()
                 };
 
                 var level = eventData.Level switch
