@@ -5,6 +5,6 @@ namespace QP.GraphQL.Interfaces.Metadata
 {
     public interface IQpMetadataAccessor
     {
-        Task<IDictionary<int, QpContentMetadata>> GetContentsMetadata(IEnumerable<int> contentIds);
+        IDictionary<int, QpContentMetadata> GetContentsMetadata();
     }
 }

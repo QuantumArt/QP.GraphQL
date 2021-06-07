@@ -1,30 +1,32 @@
 ﻿using Dapper;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using QP.GraphQL.Interfaces.Metadata;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Linq;
-using System.Threading.Tasks;
 
 namespace QP.GraphQL.DAL
 {
     public class QpMetadataAccessor : IQpMetadataAccessor
     {
-        public QpMetadataAccessor(DbConnection connection, ILogger<QpMetadataAccessor> logger)
+        public QpMetadataAccessor(DbConnection connection, IOptions<QpMetadataSettings> options, ILogger<QpMetadataAccessor> logger)
         {
             Connection = connection;
+            Settings = options.Value;
             Logger = logger;
         }
         
         public DbConnection Connection { get; }
-        protected ILogger<QpMetadataAccessor> Logger { get; private set; }
+        protected QpMetadataSettings Settings { get; }
+        protected ILogger<QpMetadataAccessor> Logger { get; }
 
-        public async Task<IDictionary<int, QpContentMetadata>> GetContentsMetadata(IEnumerable<int> contentIds)
+        public IDictionary<int, QpContentMetadata> GetContentsMetadata()
         {
             if (Connection.State != ConnectionState.Open)
-                await Connection.OpenAsync();
+                Connection.Open();
 
             var query = $@"
                 select ca.attribute_id as Id,
@@ -45,7 +47,7 @@ namespace QP.GraphQL.DAL
                 join attribute_type at on at.attribute_type_id = ca.attribute_type_id
                 left join content_to_content ctc on ctc.link_id = ca.link_id
                 left join content_attribute rca on rca.attribute_id = ca.related_attribute_id
-                where c.content_id in ({(contentIds == null || !contentIds.Any() ? "select content_id from content" : String.Join(",", contentIds))})
+                where c.content_id in ({(Settings.ContentIds == null || !Settings.ContentIds.Any() ? "select content_id from content" : String.Join(",", Settings.ContentIds))})
                 ";
 
             var contentAttributesRaw = Connection.Query<QpContentAttributeMetadataInternal>(query).ToList();

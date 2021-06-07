@@ -22,11 +22,12 @@ namespace QP.GraphQL.App.Schema
     {
         public QpContentsSchemaDynamic(IServiceProvider serviceProvider, 
             IDataLoaderContextAccessor dataLoaderAccessor,
-            IDictionary<int, QpContentMetadata> metadata,
+            IQpMetadataAccessor metadataAccessor,
             ILogger<QpContentsSchemaDynamic> logger
             )
             : base(serviceProvider)
         {
+            var metadata = metadataAccessor.GetContentsMetadata();
             var graphTypes = new Dictionary<int, IObjectGraphType>();
             var graphListTypes = new Dictionary<int, ListGraphType>();
             var connectionGraphTypes = new Dictionary<int, ObjectGraphType<Connection<QpArticle, Edge<QpArticle>>>>();
