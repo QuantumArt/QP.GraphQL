@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace QP.GraphQL.DAL.Postgresql
+namespace QP.GraphQL.DAL
 {
     internal class QpContentAttributeMetadataInternal
     {

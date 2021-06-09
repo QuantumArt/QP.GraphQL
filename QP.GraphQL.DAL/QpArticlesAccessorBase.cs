@@ -1,42 +1,28 @@
-﻿using Npgsql;
+﻿using Microsoft.Extensions.Logging;
 using QP.GraphQL.Interfaces.Articles;
 using QP.GraphQL.Interfaces.Articles.Filtering;
 using QP.GraphQL.Interfaces.Articles.Paging;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.Common;
 using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace QP.GraphQL.DAL.Postgresql
+namespace QP.GraphQL.DAL
 {
-    public class QpArticlesAccessor : IQpArticlesAccessor
+    public abstract class QpArticlesAccessorBase : IQpArticlesAccessor
     {
-        public QpArticlesAccessor(NpgsqlConnection connection)
+        public QpArticlesAccessorBase(DbConnection connection, ILogger logger)
         {
             Connection = connection;
+            Logger = logger;
         }
 
-        public NpgsqlConnection Connection { get; }
-
-        public async Task<QpArticle> GetArticleById(int contentId, int articleId)
-        {
-            if (Connection.State != ConnectionState.Open)
-                await Connection.OpenAsync();
-
-            var command = Connection.CreateCommand();
-
-            command.CommandText = $"select * from content_{contentId}_live_new where content_item_id = {articleId}";
-            command.CommandType = CommandType.Text;
-
-            using (var reader = await command.ExecuteReaderAsync())
-            {
-                var result = ParseQpArticleReader(reader, contentId);
-                return result.Any() ? result[0] : null;
-            }
-        }
+        public DbConnection Connection { get; }
+        protected ILogger Logger { get; private set; }
 
         public async Task<IDictionary<int, QpArticle>> GetArticlesByIdList(int contentId, IEnumerable<int> articleIds)
         {
@@ -49,7 +35,7 @@ namespace QP.GraphQL.DAL.Postgresql
             var command = Connection.CreateCommand();
 
             command.CommandText = $"select * from content_{contentId}_live_new where content_item_id in ({String.Join(",", articleIds)})";
-            command.CommandType = CommandType.Text;
+            command.CommandType = CommandType.Text; //1
 
             using (var reader = await command.ExecuteReaderAsync())
             {
@@ -71,13 +57,15 @@ namespace QP.GraphQL.DAL.Postgresql
             command.CommandText = @$"
                 select m2m.l_item_ids, t.*
                 from
-                (select array_to_string(array_agg(l_item_id), ',') as l_item_ids, r_item_id 
+                (select
+                    {BuildIdsFieldClause()} as l_item_ids,
+                    r_item_id 
                  from item_to_item  
                  where link_id={relationId} and l_item_id in ({String.Join(",", articleIds)})
                  group by r_item_id) as m2m
                  join content_{contentId}_live_new t on t.content_item_id = m2m.r_item_id
                    where {BuildWhereClause(where)} {(orderBy != null && orderBy.Any() ? "order by " + BuildOrderbyClause(orderBy, false) : "")}";
-            command.CommandType = CommandType.Text;
+            command.CommandType = CommandType.Text; //2
 
             using (var reader = await command.ExecuteReaderAsync())
             {
@@ -113,12 +101,13 @@ namespace QP.GraphQL.DAL.Postgresql
 
                 if (takeRowsFromBeginning)
                 {
-                    query = $"select * from content_{contentId}_live_new where {whereClause} and {pagingWhereClause} order by {BuildOrderbyClause(orderBy, false)} limit {count + 1}";
+                    
+                    query = BuildLimitClause(contentId, whereClause, pagingWhereClause, orderBy, count + 1, false);
                 }
                 else
                 {
                     query = $@" select * from (
-                        select * from content_{contentId}_live_new where {whereClause} and {pagingWhereClause} order by {BuildOrderbyClause(orderBy, true)} limit {count + 1}
+                        {BuildLimitClause(contentId, whereClause, pagingWhereClause, orderBy, count + 1, true)}
                     ) tbl order by {BuildOrderbyClause(orderBy, false)}";
                 }
             }
@@ -140,7 +129,7 @@ namespace QP.GraphQL.DAL.Postgresql
                 var commandForTotalCount = Connection.CreateCommand();
 
                 commandForTotalCount.CommandText = $"select count(*) from content_{contentId}_live_new where {whereClause}";
-                commandForTotalCount.CommandType = CommandType.Text;
+                commandForTotalCount.CommandType = CommandType.Text; //3
 
                 var totalCountObj = await commandForTotalCount.ExecuteScalarAsync();
                 totalCount = Convert.ToInt32(totalCountObj);
@@ -149,7 +138,7 @@ namespace QP.GraphQL.DAL.Postgresql
             var command = Connection.CreateCommand();
 
             command.CommandText = query;
-            command.CommandType = CommandType.Text;
+            command.CommandType = CommandType.Text; //4
 
             using (var reader = await command.ExecuteReaderAsync())
             {
@@ -189,7 +178,10 @@ namespace QP.GraphQL.DAL.Postgresql
             }
         }
 
-        private List<QpArticle> ParseQpArticleReader(NpgsqlDataReader reader, int contentId)
+        protected abstract string BuildIdsFieldClause();
+        protected abstract string BuildLimitClause(int contentId, string whereClause, string pagingWhereClause, IList<string> orderBy, int count, bool reverse);
+
+        private List<QpArticle> ParseQpArticleReader(DbDataReader reader, int contentId)
         {
             var result = new List<QpArticle>();
             while (reader.Read())
@@ -197,9 +189,9 @@ namespace QP.GraphQL.DAL.Postgresql
                 var article = new QpArticle(contentId);
                 for (var i = 0; i < reader.FieldCount; i++)
                 {
-                    var column = reader.GetName(i);
+                    var column = reader.GetName(i).ToLowerInvariant();
                     if (string.Equals(column, "content_item_id", StringComparison.OrdinalIgnoreCase))
-                        article.Id = Decimal.ToInt32(reader.GetDecimal(i));
+                        article.Id = reader.GetInt32(i);
                     else
                     {
                         var val = reader.GetValue(i);
@@ -213,7 +205,7 @@ namespace QP.GraphQL.DAL.Postgresql
             return result;
         }
 
-        private ILookup<int, QpArticle> ParseReaderForM2mLookup(NpgsqlDataReader reader, int contentId)
+        private ILookup<int, QpArticle> ParseReaderForM2mLookup(DbDataReader reader, int contentId)
         {
             var result = new List<Tuple<int[], QpArticle>>();
             while (reader.Read())
@@ -222,9 +214,9 @@ namespace QP.GraphQL.DAL.Postgresql
                 int[] ids = null;
                 for (var i = 0; i < reader.FieldCount; i++)
                 {
-                    var column = reader.GetName(i);
+                    var column = reader.GetName(i).ToLowerInvariant();
                     if (string.Equals(column, "content_item_id", StringComparison.OrdinalIgnoreCase))
-                        article.Id = Decimal.ToInt32(reader.GetDecimal(i));
+                        article.Id = reader.GetInt32(i);
                     else if (string.Equals(column, "l_item_ids", StringComparison.OrdinalIgnoreCase))
                     {
                         ids = reader.GetString(i).Split(',').Select(Int32.Parse).ToArray();
@@ -244,7 +236,7 @@ namespace QP.GraphQL.DAL.Postgresql
                 .ToLookup(t => t.Item1, t => t.Item2);
         }
 
-        private static string BuildOrderbyClause(IList<string> orderBy, bool reverse)
+        protected static string BuildOrderbyClause(IList<string> orderBy, bool reverse)
         {
             StringBuilder orderByClauseBuilder = new StringBuilder();
             foreach (var orderByToken in orderBy)

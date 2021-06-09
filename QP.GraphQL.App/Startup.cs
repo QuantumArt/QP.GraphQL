@@ -8,12 +8,14 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Npgsql;
 using QP.GraphQL.App.Schema;
-using QP.GraphQL.DAL.Postgresql;
+using QP.GraphQL.DAL;
 using QP.GraphQL.Interfaces.Articles;
+using QP.GraphQL.Interfaces.DAL;
 using QP.GraphQL.Interfaces.Metadata;
+using System.Data.Common;
 
 namespace QP.GraphQL.App
 {
@@ -41,23 +43,26 @@ namespace QP.GraphQL.App
             services.AddSingleton<IDataLoaderContextAccessor, DataLoaderContextAccessor>();
             services.AddSingleton<DataLoaderDocumentListener>();
 
+            services.AddSingleton<SqlClientListener>();
+
             // qp dal
-            services.AddTransient<IQpArticlesAccessor, QpArticlesAccessor>();
+            services.Configure<ConnectionSettings>(Configuration.GetConnectionSection());
+            services.AddSingleton<IConnectionFactory, ConnectionFactory>();
+            services.AddTransient<DbConnection>(s => s.GetRequiredService<IConnectionFactory>().GetConnection());
             services.AddTransient<IQpMetadataAccessor, QpMetadataAccessor>();
-            services.AddTransient<NpgsqlConnection>(_ => new NpgsqlConnection(Configuration.GetConnectionString("QP")));
+
+            if (Configuration.GetDatabaseType() == DatabaseType.Postgres)
+            {
+                services.AddTransient<IQpArticlesAccessor, QpArticlesAccessorPostgres>();                
+            }
+            else if(Configuration.GetDatabaseType() == DatabaseType.SqlServer)
+            {                
+                services.AddTransient<IQpArticlesAccessor, QpArticlesAccessorSqlServer>();                              
+            }
 
             // add schema
-            services.AddSingleton<ISchema, QpContentsSchemaDynamic>(services =>
-            {
-                var dataLoaderAccessor = services.GetRequiredService<IDataLoaderContextAccessor>();
-                var metadataAccessor = services.GetRequiredService<IQpMetadataAccessor>();
-
-                var metadataTask = metadataAccessor.GetContentsMetadata(new int[] { 30745, 30746, 30747 });
-                //var metadataTask = metadataAccessor.GetContentsMetadata(null);
-
-                var schema = new QpContentsSchemaDynamic(services, dataLoaderAccessor, metadataTask.Result);
-                return schema;
-            });
+            services.Configure<QpMetadataSettings>(Configuration);
+            services.AddSingleton<ISchema, QpContentsSchemaDynamic>();
 
             services.Configure<GraphQLSettings>(Configuration);
         }
@@ -69,6 +74,9 @@ namespace QP.GraphQL.App
             {
                 app.UseDeveloperExceptionPage();
             }
+
+            //Warm up the listener
+            app.ApplicationServices.GetService<SqlClientListener>();
 
             app.UseMiddleware<GraphQLMiddleware>();
             app.UseGraphQLPlayground();

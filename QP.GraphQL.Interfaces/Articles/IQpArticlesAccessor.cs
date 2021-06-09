@@ -8,7 +8,6 @@ namespace QP.GraphQL.Interfaces.Articles
 {
     public interface IQpArticlesAccessor
     {
-        Task<QpArticle> GetArticleById(int contentId, int articleId);
         Task<IDictionary<int, QpArticle>> GetArticlesByIdList(int contentId, IEnumerable<int> articleIds);
         Task<RelayPaginationResult> GetPagedArticles(int contentId,
             IList<string> orderBy,

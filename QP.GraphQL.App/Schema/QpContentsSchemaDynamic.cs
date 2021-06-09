@@ -4,7 +4,9 @@ using GraphQL.Resolvers;
 using GraphQL.Types;
 using GraphQL.Types.Relay;
 using GraphQL.Types.Relay.DataObjects;
+using GraphQL.Utilities;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using QP.GraphQL.Interfaces.Articles;
 using QP.GraphQL.Interfaces.Articles.Filtering;
 using QP.GraphQL.Interfaces.Articles.Paging;
@@ -20,16 +22,39 @@ namespace QP.GraphQL.App.Schema
     {
         public QpContentsSchemaDynamic(IServiceProvider serviceProvider, 
             IDataLoaderContextAccessor dataLoaderAccessor,
-            IDictionary<int, QpContentMetadata> metadata
+            IQpMetadataAccessor metadataAccessor,
+            ILogger<QpContentsSchemaDynamic> logger
             )
             : base(serviceProvider)
         {
+            var metadata = metadataAccessor.GetContentsMetadata();
             var graphTypes = new Dictionary<int, IObjectGraphType>();
             var graphListTypes = new Dictionary<int, ListGraphType>();
             var connectionGraphTypes = new Dictionary<int, ObjectGraphType<Connection<QpArticle, Edge<QpArticle>>>>();
             var orderGraphTypes = new Dictionary<int, ListGraphType>();
             var filterGraphTypes = new Dictionary<int, InputObjectGraphType<object>>();
             var filterDefinitionsByContentTypes = new Dictionary<int, Dictionary<string, QpFieldFilterDefinition>>();
+
+            //валидация полей
+            foreach(var item in metadata)
+            {
+                var attributes = new List<QpContentAttributeMetadata>();
+
+                foreach(var a in item.Value.Attributes)
+                {
+                    try
+                    {
+                        NameValidator.ValidateName(a.Alias, NamedElement.Field);
+                        attributes.Add(a);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning("field {field} not pass: {validationerror}", new { a.Id, a.Alias, a.ContentId}, ex.Message);
+                    }
+                }
+
+                item.Value.Attributes = attributes;
+            }
 
             //создаём типы графов по каждому типу контента
             foreach (var contentId in metadata.Keys)
@@ -69,7 +94,7 @@ namespace QP.GraphQL.App.Schema
                     Description = $"Filter object for content type {graphType.Name}"
                 };
                 var filterDefinitions = new Dictionary<string, QpFieldFilterDefinition>();
-                foreach (var attribute in contentMeta.Attributes)
+                foreach (var attribute in contentMeta.Attributes.Where(ca => !ca.Alias.Contains(' ')))
                 {
                     switch (attribute.TypeName)
                     {
@@ -363,8 +388,14 @@ namespace QP.GraphQL.App.Schema
                     Arguments = new QueryArguments(
                         new QueryArgument<NonNullGraphType<IntGraphType>> { Name = "Id", Description = "id of the article" }
                     ),
-                    Resolver = new AsyncFieldResolver<QpArticle>(async context => await context.RequestServices.GetRequiredService<IQpArticlesAccessor>()
-                        .GetArticleById(contentId, context.GetArgument<int>("id")))
+                    Resolver = new FuncFieldResolver<QpArticle, IDataLoaderResult<QpArticle>>(context => 
+                    {
+                        var loader = dataLoaderAccessor.Context.GetOrAddBatchLoader<int, QpArticle>($"Batch_{contentId}",
+                                            (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>()
+                                                        .GetArticlesByIdList(contentId, ids));
+
+                        return loader.LoadAsync(Convert.ToInt32(context.GetArgument<int>("id")));
+                    })
                 });
                 var connectionField = new FieldType
                 {
