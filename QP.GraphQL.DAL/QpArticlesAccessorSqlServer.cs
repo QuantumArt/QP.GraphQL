@@ -23,7 +23,7 @@ namespace QP.GraphQL.DAL
 
         protected override string BuildLimitClause(int contentId, string whereClause, string pagingWhereClause, IList<string> orderBy, int count, bool reverse)
         {
-            return $"select top({count + 1}) * from content_{contentId}_live_new where {whereClause} and {pagingWhereClause} order by {BuildOrderbyClause(orderBy, reverse)}";
+            return $"select top({count}) * from content_{contentId}_live_new where {whereClause} and {pagingWhereClause} order by {BuildOrderbyClause(orderBy, reverse)}";
         }
     }
 }

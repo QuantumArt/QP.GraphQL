@@ -102,12 +102,12 @@ namespace QP.GraphQL.DAL
                 if (takeRowsFromBeginning)
                 {
                     
-                    query = BuildLimitClause(contentId, whereClause, pagingWhereClause, orderBy, count, false);
+                    query = BuildLimitClause(contentId, whereClause, pagingWhereClause, orderBy, count + 1, false);
                 }
                 else
                 {
                     query = $@" select * from (
-                        {BuildLimitClause(contentId, whereClause, pagingWhereClause, orderBy, count, true)}
+                        {BuildLimitClause(contentId, whereClause, pagingWhereClause, orderBy, count + 1, true)}
                     ) tbl order by {BuildOrderbyClause(orderBy, false)}";
                 }
             }

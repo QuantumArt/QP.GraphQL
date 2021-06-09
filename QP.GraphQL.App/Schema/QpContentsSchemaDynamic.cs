@@ -70,14 +70,14 @@ namespace QP.GraphQL.App.Schema
 
                 //создаём input-тип, который будет использоваться для задания сортировки по статьям этого типа
                 //я решил дать возможность сортировки только по Indexed-полям (если их не будет, то не будет и возможности сортировки)
-                if (contentMeta.Attributes.Any(ca => ca.Indexed && !ca.Alias.Contains(' ')))
+                if (contentMeta.Attributes.Any(ca => ca.Indexed))
                 {
                     var orderEnumType = new EnumerationGraphType 
                     { 
                         Name = $"PossibleOrderFor{graphType.Name}", 
                         Description = $"Possible order by literals for content type {graphType.Name}"
                     };
-                    foreach (var attribute in contentMeta.Attributes.Where(ca => ca.Indexed && !ca.Alias.Contains(' ')))
+                    foreach (var attribute in contentMeta.Attributes.Where(ca => ca.Indexed))
                     {
                         var attributeAlias = attribute.Alias.ToLowerInvariant();
                         orderEnumType.AddValue($"{attribute.Alias}Asc", $"Order by {attribute.Alias} ascending", $"{attribute.Alias}");
