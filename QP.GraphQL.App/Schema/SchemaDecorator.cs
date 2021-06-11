@@ -81,27 +81,27 @@ namespace QP.GraphQL.App.Schema
 
         public void RegisterType(IGraphType type)
         {
-            throw new NotImplementedException();
+            _schema.RegisterType(type);
         }
 
         public void RegisterType(Type type)
         {
-            throw new NotImplementedException();
+            _schema.RegisterType(type);
         }
 
         public void RegisterTypeMapping(Type clrType, Type graphType)
         {
-            throw new NotImplementedException();
+            _schema.RegisterTypeMapping(clrType, graphType);
         }
 
         public void RegisterVisitor(ISchemaNodeVisitor visitor)
         {
-            throw new NotImplementedException();
+            _schema.RegisterVisitor(visitor);
         }
 
         public void RegisterVisitor(Type type)
         {
-            throw new NotImplementedException();
+            _schema.RegisterVisitor(type);
         }
 
         public void Dispose()
