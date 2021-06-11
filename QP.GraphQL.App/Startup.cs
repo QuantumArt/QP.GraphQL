@@ -15,7 +15,9 @@ using QP.GraphQL.DAL;
 using QP.GraphQL.Interfaces.Articles;
 using QP.GraphQL.Interfaces.DAL;
 using QP.GraphQL.Interfaces.Metadata;
+using System;
 using System.Data.Common;
+using System.Text.Json.Serialization;
 
 namespace QP.GraphQL.App
 {
@@ -62,9 +64,25 @@ namespace QP.GraphQL.App
 
             // add schema
             services.Configure<QpMetadataSettings>(Configuration);
-            services.AddSingleton<ISchema, QpContentsSchemaDynamic>();
+            services.Configure<SchemaSettings>(Configuration);
+            services.AddTransient<QpContentsSchemaDynamic>();   
+            services.AddSingleton<ISchemaFactory, SchemaFactory>();
+            services.AddTransient<ISchema, SchemaDecorator>();
+            
+            if (Configuration.SchemaAutoReload())
+            {
+                services.AddHostedService<SchemaBackgroundService>();
+            }
+
 
             services.Configure<GraphQLSettings>(Configuration);
+
+            services.AddControllers();
+
+            services.AddControllers().AddJsonOptions(opts =>
+            {
+                opts.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -83,6 +101,13 @@ namespace QP.GraphQL.App
             app.UseGraphQLVoyager();
             app.UseGraphQLAltair();
             app.UseGraphQLGraphiQL();
+
+            app.UseRouting();
+
+            app.UseEndpoints(endpoints =>
+            {
+                endpoints.MapControllers();
+            });
         }
     }
 }

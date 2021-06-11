@@ -6,6 +6,7 @@
 * [3. Configuration](#configuration)
 * [4. Structured logging](#structuredlogging)
 * [5. Trace SQL](#tracesql)
+* [6. Reload Schema](#reloadschema)
 
 ## 1. Introduction <a name="introduction"></a>
 
@@ -60,3 +61,18 @@ SqlServer settings
  * [Enable event tracing in SqlClient](https://docs.microsoft.com/en-us/sql/connect/ado-net/enable-eventsource-tracing?view=sql-server-ver15)
  * [An in-depth guide to event listeners](https://www.audero.it/blog/2018/04/18/in-depth-guide-event-listeners/)
 
+ ## 6. Reload Schema <a name="reloadschema"></a>
+Configuration is available on `appsettings.json` file.
+```json
+  "SchemaAutoReload": true,
+  "SchemaReloadInterval": "00:02:00",
+```
+Reload API
+
+* ```POST /api/schema/reload``` reload schema
+* ```GET /api/schema/context``` get current schema context
+
+One can reload the schema directly in the browser console:
+```javascript
+await (await fetch('/api/schema/reload', { method: 'POST' })).json();
+```
