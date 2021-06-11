@@ -24,7 +24,7 @@ namespace QP.GraphQL.DAL
         public DbConnection Connection { get; }
         protected ILogger Logger { get; private set; }
 
-        public async Task<IDictionary<int, QpArticle>> GetArticlesByIdList(int contentId, IEnumerable<int> articleIds)
+        public async Task<IDictionary<int, QpArticle>> GetArticlesByIdList(int contentId, IEnumerable<int> articleIds, QpArticleState state)
         {
             if (!articleIds.Any())
                 return new Dictionary<int, QpArticle>();
@@ -34,8 +34,8 @@ namespace QP.GraphQL.DAL
 
             var command = Connection.CreateCommand();
 
-            command.CommandText = $"select * from content_{contentId}_live_new where content_item_id in ({String.Join(",", articleIds)})";
-            command.CommandType = CommandType.Text; //1
+            command.CommandText = $"select * from {GetContentTable(contentId, state)} where content_item_id in ({String.Join(",", articleIds)})";
+            command.CommandType = CommandType.Text;
 
             using (var reader = await command.ExecuteReaderAsync())
             {
@@ -47,7 +47,8 @@ namespace QP.GraphQL.DAL
             IEnumerable<int> articleIds,
             int relationId,
             IList<string> orderBy,
-            IEnumerable<QpFieldFilterClause> where)
+            IEnumerable<QpFieldFilterClause> where,
+            QpArticleState state)
         {
             if (Connection.State != ConnectionState.Open)
                 await Connection.OpenAsync();
@@ -77,7 +78,8 @@ namespace QP.GraphQL.DAL
             IList<string> orderBy,
             IEnumerable<QpFieldFilterClause> where,
             RelayPaginationArgs paginationArgs,
-            bool calcTotalCount)
+            bool calcTotalCount,
+            QpArticleState state)
         {
             string query;
             string whereClause = BuildWhereClause(where);
@@ -345,5 +347,14 @@ namespace QP.GraphQL.DAL
             return whereBuilder.ToString();
         }
 
+        private static string GetContentTable(int contentId, QpArticleState state)
+        {
+            return state switch
+            {
+                QpArticleState.Live => $"content_{contentId}_live_new",
+                QpArticleState.Stage => $"content_{contentId}_stage_new",
+                _ => null
+            };
+        }
     }
 }

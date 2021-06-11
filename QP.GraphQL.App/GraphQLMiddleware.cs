@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using GraphQL;
@@ -9,11 +10,14 @@ using GraphQL.Types;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using QP.GraphQL.App.Schema;
+using QP.GraphQL.DAL;
+using QP.GraphQL.Interfaces.Articles;
 
 namespace QP.GraphQL.App
 {
     public class GraphQLMiddleware
     {
+        public const string QpArticleStateField = "state";
         private readonly RequestDelegate _next;
         private readonly GraphQLSettings _settings;
         private readonly IDocumentExecuter _executer;
@@ -52,11 +56,28 @@ namespace QP.GraphQL.App
                 && string.Equals(context.Request.Method, "POST", StringComparison.OrdinalIgnoreCase);
         }
 
+        private IDictionary<string, object> GetUserContext(HttpContext context)
+        {
+            var path = context.Request.Path;
+            path.StartsWithSegments(_settings.GraphQLPath, out PathString s);
+            var state = s.StartsWithSegments("/stage") ? QpArticleState.Stage : QpArticleState.Live;
+
+            return new Dictionary<string, object>
+            {
+                { QpArticleStateField, state }
+            };
+        }
+
         private async Task ExecuteAsync(HttpContext context, ISchema schema)
         {
             var start = DateTime.UtcNow;
 
+            var x = context.Request.Path.ToString();
+
+            context.Request.Path.StartsWithSegments(_settings.GraphQLPath, out PathString r);
+
             var request = await context.Request.Body.FromJsonAsync<GraphQLRequest>(context.RequestAborted);
+            var userContext = GetUserContext(context);
 
             var result = await _executer.ExecuteAsync(options =>
             {
@@ -64,12 +85,13 @@ namespace QP.GraphQL.App
                 options.Query = request.Query;
                 options.OperationName = request.OperationName;
                 options.Inputs = request.Variables;
-                //options.UserContext = _settings.BuildUserContext?.Invoke(context);
+                options.UserContext = userContext;
                 options.EnableMetrics = _settings.EnableMetrics;
                 options.RequestServices = context.RequestServices;
                 options.CancellationToken = context.RequestAborted;
                 options.Listeners.Add(_dataLoaderDocumentListener);
             });
+
 
             if (_settings.EnableMetrics)
             {
