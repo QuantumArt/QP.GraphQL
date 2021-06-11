@@ -8,6 +8,7 @@ using GraphQL.SystemTextJson;
 using GraphQL.Types;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
+using QP.GraphQL.App.Schema;
 
 namespace QP.GraphQL.App
 {
