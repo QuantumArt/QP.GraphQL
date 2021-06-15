@@ -64,9 +64,9 @@ namespace QP.GraphQL.DAL
                  from item_to_item  
                  where link_id={relationId} and l_item_id in ({String.Join(",", articleIds)})
                  group by r_item_id) as m2m
-                 join content_{contentId}_live_new t on t.content_item_id = m2m.r_item_id
+                 join {GetContentTable(contentId, state)} t on t.content_item_id = m2m.r_item_id
                    where {BuildWhereClause(where)} {(orderBy != null && orderBy.Any() ? "order by " + BuildOrderbyClause(orderBy, false) : "")}";
-            command.CommandType = CommandType.Text; //2
+            command.CommandType = CommandType.Text;
 
             using (var reader = await command.ExecuteReaderAsync())
             {
@@ -99,26 +99,26 @@ namespace QP.GraphQL.DAL
                 if (count <= 0)
                     throw new ArgumentException($"Pagination parameter {(takeRowsFromBeginning ? "first" : "last")} must be positive");
 
-                var pagingWhereClause = cursor != null ? BuildPagingWhereClause(contentId, orderBy, cursor, !takeRowsFromBeginning) : "(1=1)";
+                var pagingWhereClause = cursor != null ? BuildPagingWhereClause(contentId, orderBy, cursor, !takeRowsFromBeginning, state) : "(1=1)";
 
                 if (takeRowsFromBeginning)
                 {
                     
-                    query = BuildLimitClause(contentId, whereClause, pagingWhereClause, orderBy, count + 1, false);
+                    query = BuildLimitClause(contentId, whereClause, pagingWhereClause, orderBy, count + 1, false, state);
                 }
                 else
                 {
                     query = $@" select * from (
-                        {BuildLimitClause(contentId, whereClause, pagingWhereClause, orderBy, count + 1, true)}
+                        {BuildLimitClause(contentId, whereClause, pagingWhereClause, orderBy, count + 1, true, state)}
                     ) tbl order by {BuildOrderbyClause(orderBy, false)}";
                 }
             }
             else
             {
                 if (orderBy != null)
-                    query = $"select * from content_{contentId}_live_new where {whereClause} order by {BuildOrderbyClause(orderBy, false)}";
+                    query = $"select * from {GetContentTable(contentId, state)} where {whereClause} order by {BuildOrderbyClause(orderBy, false)}";
                 else
-                    query = $"select * from content_{contentId}_live_new where {whereClause}";
+                    query = $"select * from {GetContentTable(contentId, state)} where {whereClause}";
             }
 
             if (Connection.State != ConnectionState.Open)
@@ -130,8 +130,8 @@ namespace QP.GraphQL.DAL
                 //считаем общее кол-во записей только если клиент попросил
                 var commandForTotalCount = Connection.CreateCommand();
 
-                commandForTotalCount.CommandText = $"select count(*) from content_{contentId}_live_new where {whereClause}";
-                commandForTotalCount.CommandType = CommandType.Text; //3
+                commandForTotalCount.CommandText = $"select count(*) from {GetContentTable(contentId, state)} where {whereClause}";
+                commandForTotalCount.CommandType = CommandType.Text;
 
                 var totalCountObj = await commandForTotalCount.ExecuteScalarAsync();
                 totalCount = Convert.ToInt32(totalCountObj);
@@ -140,7 +140,7 @@ namespace QP.GraphQL.DAL
             var command = Connection.CreateCommand();
 
             command.CommandText = query;
-            command.CommandType = CommandType.Text; //4
+            command.CommandType = CommandType.Text;
 
             using (var reader = await command.ExecuteReaderAsync())
             {
@@ -181,7 +181,7 @@ namespace QP.GraphQL.DAL
         }
 
         protected abstract string BuildIdsFieldClause();
-        protected abstract string BuildLimitClause(int contentId, string whereClause, string pagingWhereClause, IList<string> orderBy, int count, bool reverse);
+        protected abstract string BuildLimitClause(int contentId, string whereClause, string pagingWhereClause, IList<string> orderBy, int count, bool reverse, QpArticleState state);
 
         private List<QpArticle> ParseQpArticleReader(DbDataReader reader, int contentId)
         {
@@ -255,7 +255,7 @@ namespace QP.GraphQL.DAL
             return orderByClauseBuilder.ToString();
         }
 
-        private static string BuildPagingWhereClause(int contentId, IList<string> orderBy, string cursor, bool reverse)
+        private static string BuildPagingWhereClause(int contentId, IList<string> orderBy, string cursor, bool reverse, QpArticleState state)
         {
             //для понимания структуры выражения where, которое строится здесь, надо изучить
             //https://stackoverflow.com/questions/56989560/how-to-get-a-cursor-for-pagination-in-graphql-from-a-database
@@ -287,8 +287,8 @@ namespace QP.GraphQL.DAL
                 }
 
                 whereClauseBuilder.Insert(0, @$"
-({orderByColumn} {(ascending ^ reverse ? ">" : "<")} (select {orderByColumn} from content_{contentId}_live_new where content_item_id={cursor}) or 
-({orderByColumn} = (select {orderByColumn} from content_{contentId}_live_new where content_item_id={cursor}) and ");
+({orderByColumn} {(ascending ^ reverse ? ">" : "<")} (select {orderByColumn} from {GetContentTable(contentId, state)} where content_item_id={cursor}) or 
+({orderByColumn} = (select {orderByColumn} from {GetContentTable(contentId, state)} where content_item_id={cursor}) and ");
                 whereClauseBuilder.Append("))");
             }
 
@@ -347,7 +347,7 @@ namespace QP.GraphQL.DAL
             return whereBuilder.ToString();
         }
 
-        private static string GetContentTable(int contentId, QpArticleState state)
+        protected static string GetContentTable(int contentId, QpArticleState state)
         {
             return state switch
             {
