@@ -39,6 +39,7 @@ namespace QP.GraphQL.DAL
 	                ctc.r_content_id as RelatedM2mContentId,
 	                rca.content_id as RelatedO2mContentId,
                     bca.content_id as RelatedM2oContentId,
+                    bca.attribute_name as RelatedM2oBackwardField,
 	                c.content_name as ContentFriendlyName,
 	                c.net_content_name as ContentAliasSingular,
 	                c.net_plural_content_name as ContentAliasPlural,

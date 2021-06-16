@@ -369,9 +369,11 @@ namespace QP.GraphQL.App.Schema
                             break;
                         case "Relation Many-to-One":
                             relationContentId = 0;
-                            if (attribute.RelatedM2oContentId.HasValue)
+                            string backwardFieldName = null;
+                            if (attribute.RelatedM2oContentId.HasValue && !string.IsNullOrEmpty(attribute.RelatedM2oBackwardField))
                             {
                                 relationContentId = attribute.RelatedM2oContentId.Value;
+                                backwardFieldName = attribute.RelatedM2oBackwardField;
                             }
                             else
                             {
@@ -392,14 +394,14 @@ namespace QP.GraphQL.App.Schema
                             }
                             else
                             {
-                                var backwardType = graphListTypes[relationContentId];
-
                                 f = new FieldType
                                 {
                                     Name = ClearifyGraphName(attribute.Alias),
                                     Description = attribute.FriendlyName,
-                                    ResolvedType = backwardType,
-                                    Arguments = null,
+                                    ResolvedType = graphListTypes[relationContentId],
+                                    Arguments = new QueryArguments(
+                                        new QueryArgument(filterGraphTypes[relationContentId]) { Name = "filter", Description = "Filter by" }
+                                    ),
                                     Resolver = new FuncFieldResolver<QpArticle, IDataLoaderResult<IEnumerable<QpArticle>>>(context =>
                                     {
                                         var orderArgs = GetOrderArguments(context);
@@ -410,21 +412,20 @@ namespace QP.GraphQL.App.Schema
                                             .OrderBy(fa => fa.FilterDefinition.QpFieldName)
                                             .ThenBy(fa => fa.FilterDefinition.Operator)
                                             .Select(fa => $"{fa.FilterDefinition.QpFieldName}_{fa.FilterDefinition.Operator}_{fa.GetHashCode()}")) : "";
-                                        
-                                        var backwardFieldId = Convert.ToInt32(context.Source.AllFields[attributeAlias]);
-                                        var backwardFieldAlias = metadata[relationContentId].Attributes.Single(i => i.Id == backwardFieldId).Alias;
 
                                         var loader = dataLoaderAccessor.Context.GetOrAddCollectionBatchLoader<int, QpArticle>($"M2O_{attribute.Id}_filter({filterArgsKey})_order({orderArgsKey})",
                                             (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>().GetRelatedM2oArticlesByIdList(
                                                 relationContentId,
                                                 ids,
-                                                backwardFieldAlias,
+                                                backwardFieldName,
                                                 orderArgs,
                                                 filterArgs));
 
                                         return loader.LoadAsync(context.Source.Id);
                                     })
                                 };
+                                if (orderGraphTypes.ContainsKey(relationContentId))
+                                    f.Arguments.Add(new QueryArgument(orderGraphTypes[relationContentId]) { Name = "order", Description = "Order by" });
                             }
                             break;
                     }
