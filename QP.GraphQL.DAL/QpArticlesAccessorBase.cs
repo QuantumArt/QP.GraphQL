@@ -82,14 +82,14 @@ namespace QP.GraphQL.DAL
             var command = Connection.CreateCommand();
 
             command.CommandText = @$"
-                select [{backwardFieldname}] backward_id, *
+                select *
                 from content_{contentId}_live_new
-                where [{backwardFieldname}] in ({String.Join(",", articleIds)}) and {BuildWhereClause(where)} {(orderBy != null && orderBy.Any() ? "order by " + BuildOrderbyClause(orderBy, false) : "")}";
+                where {backwardFieldname} in ({String.Join(",", articleIds)}) and {BuildWhereClause(where)} {(orderBy != null && orderBy.Any() ? "order by " + BuildOrderbyClause(orderBy, false) : "")}";
             command.CommandType = CommandType.Text;
 
             using (var reader = await command.ExecuteReaderAsync())
             {
-                return ParseReaderForM2oLookup(reader, contentId);
+                return ParseReaderForM2oLookup(reader, contentId, backwardFieldname);
             }
         }
 
@@ -257,7 +257,7 @@ namespace QP.GraphQL.DAL
         }
 
 
-        private ILookup<int, QpArticle> ParseReaderForM2oLookup(DbDataReader reader, int contentId)
+        private ILookup<int, QpArticle> ParseReaderForM2oLookup(DbDataReader reader, int contentId, string backwardFieldname)
         {
             var result = new List<Tuple<int, QpArticle>>();
             while (reader.Read())
@@ -272,7 +272,7 @@ namespace QP.GraphQL.DAL
                     {
                         article.Id = reader.GetInt32(i);
                     }
-                    else if (string.Equals(column, "backward_id", StringComparison.OrdinalIgnoreCase))
+                    else if (string.Equals(column, backwardFieldname, StringComparison.OrdinalIgnoreCase))
                     {
                         backward_id = reader.GetInt32(i);
                     }

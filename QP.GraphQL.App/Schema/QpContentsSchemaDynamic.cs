@@ -319,19 +319,14 @@ namespace QP.GraphQL.App.Schema
                                     Name = ClearifyGraphName(attribute.Alias),
                                     Description = attribute.FriendlyName,
                                     ResolvedType = graphListTypes[relationContentId],
-                                    Arguments = new QueryArguments(
-                                        new QueryArgument(filterGraphTypes[relationContentId]) { Name = "filter", Description = "Filter by" }
-                                    ),
+                                    Arguments = GetRelationArguments(filterGraphTypes, orderGraphTypes, relationContentId),
                                     Resolver = new FuncFieldResolver<QpArticle, IDataLoaderResult<IEnumerable<QpArticle>>>(context =>
                                     {
                                         var orderArgs = GetOrderArguments(context);
                                         var filterArgs = GetFilterArguments(context, filterDefinitionsByContentTypes[relationContentId]);
                                         //нужно составить ключ для даталоадера с учётом сортировки и фильтра
-                                        var orderArgsKey = orderArgs != null ? String.Join(",", orderArgs) : "";
-                                        var filterArgsKey = filterArgs != null ? String.Join(",", filterArgs
-                                            .OrderBy(fa => fa.FilterDefinition.QpFieldName)
-                                            .ThenBy(fa => fa.FilterDefinition.Operator)
-                                            .Select(fa => $"{fa.FilterDefinition.QpFieldName}_{fa.FilterDefinition.Operator}_{fa.GetHashCode()}")) : "";
+                                        var orderArgsKey = GetRelationOrderArgsKey(orderArgs);
+                                        var filterArgsKey = GetRelationFilterArgsKey(filterArgs);
 
                                         var loader = dataLoaderAccessor.Context.GetOrAddCollectionBatchLoader<int, QpArticle>($"M2M_{attribute.Id}_filter({filterArgsKey})_order({orderArgsKey})",
                                             (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>().GetRelatedM2mArticlesByIdList(
@@ -344,8 +339,6 @@ namespace QP.GraphQL.App.Schema
                                         return loader.LoadAsync(context.Source.Id);
                                     })
                                 };
-                                if (orderGraphTypes.ContainsKey(relationContentId))
-                                    f.Arguments.Add(new QueryArgument(orderGraphTypes[relationContentId]) { Name = "order", Description = "Order by" });
                             }
                             else if (isO2m)
                             {
@@ -399,19 +392,14 @@ namespace QP.GraphQL.App.Schema
                                     Name = ClearifyGraphName(attribute.Alias),
                                     Description = attribute.FriendlyName,
                                     ResolvedType = graphListTypes[relationContentId],
-                                    Arguments = new QueryArguments(
-                                        new QueryArgument(filterGraphTypes[relationContentId]) { Name = "filter", Description = "Filter by" }
-                                    ),
+                                    Arguments = GetRelationArguments(filterGraphTypes, orderGraphTypes, relationContentId),
                                     Resolver = new FuncFieldResolver<QpArticle, IDataLoaderResult<IEnumerable<QpArticle>>>(context =>
                                     {
                                         var orderArgs = GetOrderArguments(context);
                                         var filterArgs = GetFilterArguments(context, filterDefinitionsByContentTypes[relationContentId]);
                                         //нужно составить ключ для даталоадера с учётом сортировки и фильтра
-                                        var orderArgsKey = orderArgs != null ? String.Join(",", orderArgs) : "";
-                                        var filterArgsKey = filterArgs != null ? String.Join(",", filterArgs
-                                            .OrderBy(fa => fa.FilterDefinition.QpFieldName)
-                                            .ThenBy(fa => fa.FilterDefinition.Operator)
-                                            .Select(fa => $"{fa.FilterDefinition.QpFieldName}_{fa.FilterDefinition.Operator}_{fa.GetHashCode()}")) : "";
+                                        var orderArgsKey = GetRelationOrderArgsKey(orderArgs);
+                                        var filterArgsKey = GetRelationFilterArgsKey(filterArgs);
 
                                         var loader = dataLoaderAccessor.Context.GetOrAddCollectionBatchLoader<int, QpArticle>($"M2O_{attribute.Id}_filter({filterArgsKey})_order({orderArgsKey})",
                                             (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>().GetRelatedM2oArticlesByIdList(
@@ -424,8 +412,6 @@ namespace QP.GraphQL.App.Schema
                                         return loader.LoadAsync(context.Source.Id);
                                     })
                                 };
-                                if (orderGraphTypes.ContainsKey(relationContentId))
-                                    f.Arguments.Add(new QueryArgument(orderGraphTypes[relationContentId]) { Name = "order", Description = "Order by" });
                             }
                             break;
                     }
@@ -493,6 +479,38 @@ namespace QP.GraphQL.App.Schema
             Description = "Autogenerated QP contents schema";
 
             _logger.LogInformation("End create schema {schemaId}", Id);
+        }
+
+        private static QueryArguments GetRelationArguments(Dictionary<int, InputObjectGraphType<object>> filterGraphTypes, Dictionary<int, ListGraphType> orderGraphTypes, int relationContentId)
+        {
+            var arguments = new QueryArguments(new QueryArgument(filterGraphTypes[relationContentId]) { Name = "filter", Description = "Filter by" });
+
+            if (orderGraphTypes.ContainsKey(relationContentId))
+            {
+                arguments.Add(new QueryArgument(orderGraphTypes[relationContentId]) { Name = "order", Description = "Order by" });
+            }
+
+            return arguments;
+        }
+
+        private static string GetRelationOrderArgsKey(IList<string> orderArgs)
+        {
+            return orderArgs != null ? String.Join(",", orderArgs) : "";
+        }
+
+        private static string GetRelationFilterArgsKey(IEnumerable<QpFieldFilterClause> filterArgs)
+        {
+            if (filterArgs == null)
+            {
+                return "";
+            }
+            else
+            {
+                return String.Join(",", filterArgs
+                    .OrderBy(fa => fa.FilterDefinition.QpFieldName)
+                    .ThenBy(fa => fa.FilterDefinition.Operator)
+                    .Select(fa => $"{fa.FilterDefinition.QpFieldName}_{fa.FilterDefinition.Operator}_{fa.GetHashCode()}"));
+            }
         }
 
         private static void AddFiltersForNumericField(InputObjectGraphType<object> filterType, Dictionary<string, QpFieldFilterDefinition> filterDefinitions, QpContentAttributeMetadata attribute, Type graphType)
