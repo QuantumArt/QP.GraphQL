@@ -368,7 +368,64 @@ namespace QP.GraphQL.App.Schema
 
                             break;
                         case "Relation Many-to-One":
-                            //TODO: реализовать
+                            relationContentId = 0;
+                            if (attribute.RelatedM2oContentId.HasValue)
+                            {
+                                relationContentId = attribute.RelatedM2oContentId.Value;
+                            }
+                            else
+                            {
+                                throw new Exception($"Incorrect M2O relation field metadata. Field id = {attribute.Id}.");
+                            }
+
+                            if (!metadata.ContainsKey(relationContentId))
+                            {
+                                //если контента, на который идёт ссылка, нет в графе - делаем просто int-овое поле вместо ссылки
+                                f = new FieldType
+                                {
+                                    Name = ClearifyGraphName(attribute.Alias),
+                                    Description = attribute.FriendlyName,
+                                    Type = typeof(IntGraphType),
+                                    Arguments = null,
+                                    Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.AllFields[attributeAlias])
+                                };
+                            }
+                            else
+                            {
+                                var backwardType = graphListTypes[relationContentId];
+
+                                f = new FieldType
+                                {
+                                    Name = ClearifyGraphName(attribute.Alias),
+                                    Description = attribute.FriendlyName,
+                                    ResolvedType = backwardType,
+                                    Arguments = null,
+                                    Resolver = new FuncFieldResolver<QpArticle, IDataLoaderResult<IEnumerable<QpArticle>>>(context =>
+                                    {
+                                        var orderArgs = GetOrderArguments(context);
+                                        var filterArgs = GetFilterArguments(context, filterDefinitionsByContentTypes[relationContentId]);
+                                        //нужно составить ключ для даталоадера с учётом сортировки и фильтра
+                                        var orderArgsKey = orderArgs != null ? String.Join(",", orderArgs) : "";
+                                        var filterArgsKey = filterArgs != null ? String.Join(",", filterArgs
+                                            .OrderBy(fa => fa.FilterDefinition.QpFieldName)
+                                            .ThenBy(fa => fa.FilterDefinition.Operator)
+                                            .Select(fa => $"{fa.FilterDefinition.QpFieldName}_{fa.FilterDefinition.Operator}_{fa.GetHashCode()}")) : "";
+                                        
+                                        var backwardFieldId = Convert.ToInt32(context.Source.AllFields[attributeAlias]);
+                                        var backwardFieldAlias = metadata[relationContentId].Attributes.Single(i => i.Id == backwardFieldId).Alias;
+
+                                        var loader = dataLoaderAccessor.Context.GetOrAddCollectionBatchLoader<int, QpArticle>($"M2O_{attribute.Id}_filter({filterArgsKey})_order({orderArgsKey})",
+                                            (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>().GetRelatedM2oArticlesByIdList(
+                                                relationContentId,
+                                                ids,
+                                                backwardFieldAlias,
+                                                orderArgs,
+                                                filterArgs));
+
+                                        return loader.LoadAsync(context.Source.Id);
+                                    })
+                                };
+                            }
                             break;
                     }
 

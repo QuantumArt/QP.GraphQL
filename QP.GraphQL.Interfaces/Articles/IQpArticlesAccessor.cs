@@ -19,5 +19,11 @@ namespace QP.GraphQL.Interfaces.Articles
             int relationId,
             IList<string> orderBy,
             IEnumerable<QpFieldFilterClause> where);
+
+        Task<ILookup<int, QpArticle>> GetRelatedM2oArticlesByIdList(int contentId,
+            IEnumerable<int> articleIds,
+            string backwardFieldname,
+            IList<string> orderBy,
+            IEnumerable<QpFieldFilterClause> where);
     }
 }

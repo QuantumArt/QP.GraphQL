@@ -16,6 +16,7 @@ namespace QP.GraphQL.DAL
         public int? RelatedO2mContentId { get; set; }
         public int? RelatedM2mContentId { get; set; }
         public int? M2mRelationId { get; set; }
+        public int? RelatedM2oContentId { get; set; }
 
         public string ContentFriendlyName { get; set; }
         public string ContentAliasSingular { get; set; }
@@ -47,7 +48,8 @@ namespace QP.GraphQL.DAL
                 Indexed = this.Indexed == 1,
                 RelatedO2mContentId = this.RelatedO2mContentId,
                 RelatedM2mContentId = this.RelatedM2mContentId,
-                M2mRelationId = this.M2mRelationId
+                M2mRelationId = this.M2mRelationId,
+                RelatedM2oContentId = this.RelatedM2oContentId
             };
         }
     }
