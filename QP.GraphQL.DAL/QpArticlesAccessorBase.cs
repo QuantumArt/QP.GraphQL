@@ -84,7 +84,7 @@ namespace QP.GraphQL.DAL
             command.CommandText = @$"
                 select *
                 from content_{contentId}_live_new
-                where {backwardFieldname} in ({String.Join(",", articleIds)}) and {BuildWhereClause(where)} {(orderBy != null && orderBy.Any() ? "order by " + BuildOrderbyClause(orderBy, false) : "")}";
+                where {AddDelimiter(backwardFieldname)} in ({String.Join(",", articleIds)}) and {BuildWhereClause(where)} {(orderBy != null && orderBy.Any() ? "order by " + BuildOrderbyClause(orderBy, false) : "")}";
             command.CommandType = CommandType.Text;
 
             using (var reader = await command.ExecuteReaderAsync())
@@ -200,6 +200,7 @@ namespace QP.GraphQL.DAL
 
         protected abstract string BuildIdsFieldClause();
         protected abstract string BuildLimitClause(int contentId, string whereClause, string pagingWhereClause, IList<string> orderBy, int count, bool reverse);
+        protected abstract string AddDelimiter(string identifier);
 
         private List<QpArticle> ParseQpArticleReader(DbDataReader reader, int contentId)
         {
