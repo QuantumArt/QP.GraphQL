@@ -273,12 +273,13 @@ namespace QP.GraphQL.DAL
                     {
                         article.Id = reader.GetInt32(i);
                     }
-                    else if (string.Equals(column, backwardFieldname, StringComparison.OrdinalIgnoreCase))
-                    {
-                        backward_id = reader.GetInt32(i);
-                    }
                     else
                     {
+                        if (string.Equals(column, backwardFieldname, StringComparison.OrdinalIgnoreCase))
+                        {
+                            backward_id = reader.GetInt32(i);
+                        }
+
                         var val = reader.GetValue(i);
                         article.AllFields.Add(column, val is DBNull ? null : val);
                     }
