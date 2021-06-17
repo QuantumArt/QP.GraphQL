@@ -71,11 +71,6 @@ namespace QP.GraphQL.App
         private async Task ExecuteAsync(HttpContext context, ISchema schema)
         {
             var start = DateTime.UtcNow;
-
-            var x = context.Request.Path.ToString();
-
-            context.Request.Path.StartsWithSegments(_settings.GraphQLPath, out PathString r);
-
             var request = await context.Request.Body.FromJsonAsync<GraphQLRequest>(context.RequestAborted);
             var userContext = GetUserContext(context);
 

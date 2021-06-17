@@ -26,6 +26,7 @@ namespace QP.GraphQL.Interfaces.Articles
             IEnumerable<int> articleIds,
             string backwardFieldname,
             IList<string> orderBy,
-            IEnumerable<QpFieldFilterClause> where);
+            IEnumerable<QpFieldFilterClause> where,
+            QpArticleState state);
     }
 }

@@ -401,6 +401,7 @@ namespace QP.GraphQL.App.Schema
                                     Arguments = GetRelationArguments(filterGraphTypes, orderGraphTypes, relationContentId),
                                     Resolver = new FuncFieldResolver<QpArticle, IDataLoaderResult<IEnumerable<QpArticle>>>(context =>
                                     {
+                                        var state = GetQpArticleState(context.UserContext);
                                         var orderArgs = GetOrderArguments(context);
                                         var filterArgs = GetFilterArguments(context, filterDefinitionsByContentTypes[relationContentId]);
                                         //нужно составить ключ для даталоадера с учётом сортировки и фильтра
@@ -413,7 +414,8 @@ namespace QP.GraphQL.App.Schema
                                                 ids,
                                                 backwardFieldName,
                                                 orderArgs,
-                                                filterArgs));
+                                                filterArgs,
+                                                state));
 
                                         return loader.LoadAsync(context.Source.Id);
                                     })

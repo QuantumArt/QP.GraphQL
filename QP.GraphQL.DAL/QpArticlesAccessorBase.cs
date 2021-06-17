@@ -75,7 +75,12 @@ namespace QP.GraphQL.DAL
         }
 
 
-        public async Task<ILookup<int, QpArticle>> GetRelatedM2oArticlesByIdList(int contentId, IEnumerable<int> articleIds, string backwardFieldname, IList<string> orderBy, IEnumerable<QpFieldFilterClause> where)
+        public async Task<ILookup<int, QpArticle>> GetRelatedM2oArticlesByIdList(int contentId,
+            IEnumerable<int> articleIds,
+            string backwardFieldname,
+            IList<string> orderBy,
+            IEnumerable<QpFieldFilterClause> where,
+            QpArticleState state)
         {
             if (Connection.State != ConnectionState.Open)
                 await Connection.OpenAsync();
@@ -84,7 +89,7 @@ namespace QP.GraphQL.DAL
 
             command.CommandText = @$"
                 select *
-                from content_{contentId}_live_new
+                from {GetContentTable(contentId, state)}
                 where {AddDelimiter(backwardFieldname)} in ({String.Join(",", articleIds)}) and {BuildWhereClause(where)} {(orderBy != null && orderBy.Any() ? "order by " + BuildOrderbyClause(orderBy, false) : "")}";
             command.CommandType = CommandType.Text;
 
