@@ -232,15 +232,13 @@ namespace QP.GraphQL.DAL
             while (reader.Read())
             {
                 var article = new QpArticle(contentId);
-                int[] ids = null;
-                for (var i = 0; i < reader.FieldCount; i++)
+                int[] ids = reader.GetString(0).Split(',').Select(Int32.Parse).ToArray(); ;
+                for (var i = 1; i < reader.FieldCount; i++)
                 {
                     var column = reader.GetName(i).ToLowerInvariant();
                     if (string.Equals(column, "content_item_id", StringComparison.OrdinalIgnoreCase))
-                        article.Id = reader.GetInt32(i);
-                    else if (string.Equals(column, "l_item_ids", StringComparison.OrdinalIgnoreCase))
                     {
-                        ids = reader.GetString(i).Split(',').Select(Int32.Parse).ToArray();
+                        article.Id = reader.GetInt32(i);
                     }
                     else
                     {
