@@ -74,6 +74,26 @@ namespace QP.GraphQL.DAL
             }
         }
 
+
+        public async Task<ILookup<int, QpArticle>> GetRelatedM2oArticlesByIdList(int contentId, IEnumerable<int> articleIds, string backwardFieldname, IList<string> orderBy, IEnumerable<QpFieldFilterClause> where)
+        {
+            if (Connection.State != ConnectionState.Open)
+                await Connection.OpenAsync();
+
+            var command = Connection.CreateCommand();
+
+            command.CommandText = @$"
+                select *
+                from content_{contentId}_live_new
+                where {AddDelimiter(backwardFieldname)} in ({String.Join(",", articleIds)}) and {BuildWhereClause(where)} {(orderBy != null && orderBy.Any() ? "order by " + BuildOrderbyClause(orderBy, false) : "")}";
+            command.CommandType = CommandType.Text;
+
+            using (var reader = await command.ExecuteReaderAsync())
+            {
+                return ParseReaderForM2oLookup(reader, contentId, backwardFieldname);
+            }
+        }
+
         public async Task<RelayPaginationResult> GetPagedArticles(int contentId,
             IList<string> orderBy,
             IEnumerable<QpFieldFilterClause> where,
@@ -182,6 +202,7 @@ namespace QP.GraphQL.DAL
 
         protected abstract string BuildIdsFieldClause();
         protected abstract string BuildLimitClause(int contentId, string whereClause, string pagingWhereClause, IList<string> orderBy, int count, bool reverse, QpArticleState state);
+        protected abstract string AddDelimiter(string identifier);
 
         private List<QpArticle> ParseQpArticleReader(DbDataReader reader, int contentId)
         {
@@ -213,15 +234,13 @@ namespace QP.GraphQL.DAL
             while (reader.Read())
             {
                 var article = new QpArticle(contentId);
-                int[] ids = null;
-                for (var i = 0; i < reader.FieldCount; i++)
+                int[] ids = reader.GetString(0).Split(',').Select(Int32.Parse).ToArray(); ;
+                for (var i = 1; i < reader.FieldCount; i++)
                 {
                     var column = reader.GetName(i).ToLowerInvariant();
                     if (string.Equals(column, "content_item_id", StringComparison.OrdinalIgnoreCase))
-                        article.Id = reader.GetInt32(i);
-                    else if (string.Equals(column, "l_item_ids", StringComparison.OrdinalIgnoreCase))
                     {
-                        ids = reader.GetString(i).Split(',').Select(Int32.Parse).ToArray();
+                        article.Id = reader.GetInt32(i);
                     }
                     else
                     {
@@ -236,6 +255,43 @@ namespace QP.GraphQL.DAL
 
             return result.SelectMany(t => t.Item1.Select(id => new Tuple<int, QpArticle>(id, t.Item2)))
                 .ToLookup(t => t.Item1, t => t.Item2);
+        }
+
+
+        private ILookup<int, QpArticle> ParseReaderForM2oLookup(DbDataReader reader, int contentId, string backwardFieldname)
+        {
+            var result = new List<Tuple<int, QpArticle>>();
+            while (reader.Read())
+            {
+                var article = new QpArticle(contentId);
+                int backward_id = 0;
+                for (var i = 0; i < reader.FieldCount; i++)
+                {
+                    var column = reader.GetName(i).ToLowerInvariant();
+
+                    if (string.Equals(column, "content_item_id", StringComparison.OrdinalIgnoreCase))
+                    {
+                        article.Id = reader.GetInt32(i);
+                    }
+                    else
+                    {
+                        if (string.Equals(column, backwardFieldname, StringComparison.OrdinalIgnoreCase))
+                        {
+                            backward_id = reader.GetInt32(i);
+                        }
+
+                        var val = reader.GetValue(i);
+                        article.AllFields.Add(column, val is DBNull ? null : val);
+                    }
+                }
+
+                if (article.Id > 0 && backward_id > 0)
+                {
+                    result.Add(new Tuple<int, QpArticle>(backward_id, article));
+                }
+            }
+
+            return result.ToLookup(t => t.Item1, t => t.Item2);
         }
 
         protected static string BuildOrderbyClause(IList<string> orderBy, bool reverse)

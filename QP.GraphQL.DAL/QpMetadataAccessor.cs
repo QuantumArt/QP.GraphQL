@@ -38,6 +38,8 @@ namespace QP.GraphQL.DAL
 	                ca.link_id as M2mRelationId,
 	                ctc.r_content_id as RelatedM2mContentId,
 	                rca.content_id as RelatedO2mContentId,
+                    bca.content_id as RelatedM2oContentId,
+                    bca.attribute_name as RelatedM2oBackwardField,
 	                c.content_name as ContentFriendlyName,
 	                c.net_content_name as ContentAliasSingular,
 	                c.net_plural_content_name as ContentAliasPlural,
@@ -47,6 +49,7 @@ namespace QP.GraphQL.DAL
                 join attribute_type at on at.attribute_type_id = ca.attribute_type_id
                 left join content_to_content ctc on ctc.link_id = ca.link_id
                 left join content_attribute rca on rca.attribute_id = ca.related_attribute_id
+                left join content_attribute bca on bca.attribute_id = ca.back_related_attribute_id
                 where c.content_id in ({(Settings.ContentIds == null || !Settings.ContentIds.Any() ? "select content_id from content" : String.Join(",", Settings.ContentIds))})
                 ";
 
