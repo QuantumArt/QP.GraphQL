@@ -11,6 +11,8 @@ namespace QP.GraphQL.DAL
 
         }
 
+        protected override string AddDelimiter(string identifier) => $"\"{identifier.ToLowerInvariant()}\"";
+
         protected override string BuildIdsFieldClause()
         {
             return "array_to_string(array_agg(l_item_id), ',')";

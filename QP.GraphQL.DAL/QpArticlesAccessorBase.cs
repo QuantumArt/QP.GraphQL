@@ -35,7 +35,7 @@ namespace QP.GraphQL.DAL
             var command = Connection.CreateCommand();
 
             command.CommandText = $"select * from content_{contentId}_live_new where content_item_id in ({String.Join(",", articleIds)})";
-            command.CommandType = CommandType.Text; //1
+            command.CommandType = CommandType.Text;
 
             using (var reader = await command.ExecuteReaderAsync())
             {
@@ -65,11 +65,31 @@ namespace QP.GraphQL.DAL
                  group by r_item_id) as m2m
                  join content_{contentId}_live_new t on t.content_item_id = m2m.r_item_id
                    where {BuildWhereClause(where)} {(orderBy != null && orderBy.Any() ? "order by " + BuildOrderbyClause(orderBy, false) : "")}";
-            command.CommandType = CommandType.Text; //2
+            command.CommandType = CommandType.Text;
 
             using (var reader = await command.ExecuteReaderAsync())
             {
                 return ParseReaderForM2mLookup(reader, contentId);
+            }
+        }
+
+
+        public async Task<ILookup<int, QpArticle>> GetRelatedM2oArticlesByIdList(int contentId, IEnumerable<int> articleIds, string backwardFieldname, IList<string> orderBy, IEnumerable<QpFieldFilterClause> where)
+        {
+            if (Connection.State != ConnectionState.Open)
+                await Connection.OpenAsync();
+
+            var command = Connection.CreateCommand();
+
+            command.CommandText = @$"
+                select *
+                from content_{contentId}_live_new
+                where {AddDelimiter(backwardFieldname)} in ({String.Join(",", articleIds)}) and {BuildWhereClause(where)} {(orderBy != null && orderBy.Any() ? "order by " + BuildOrderbyClause(orderBy, false) : "")}";
+            command.CommandType = CommandType.Text;
+
+            using (var reader = await command.ExecuteReaderAsync())
+            {
+                return ParseReaderForM2oLookup(reader, contentId, backwardFieldname);
             }
         }
 
@@ -129,7 +149,7 @@ namespace QP.GraphQL.DAL
                 var commandForTotalCount = Connection.CreateCommand();
 
                 commandForTotalCount.CommandText = $"select count(*) from content_{contentId}_live_new where {whereClause}";
-                commandForTotalCount.CommandType = CommandType.Text; //3
+                commandForTotalCount.CommandType = CommandType.Text;
 
                 var totalCountObj = await commandForTotalCount.ExecuteScalarAsync();
                 totalCount = Convert.ToInt32(totalCountObj);
@@ -138,7 +158,7 @@ namespace QP.GraphQL.DAL
             var command = Connection.CreateCommand();
 
             command.CommandText = query;
-            command.CommandType = CommandType.Text; //4
+            command.CommandType = CommandType.Text;
 
             using (var reader = await command.ExecuteReaderAsync())
             {
@@ -180,6 +200,7 @@ namespace QP.GraphQL.DAL
 
         protected abstract string BuildIdsFieldClause();
         protected abstract string BuildLimitClause(int contentId, string whereClause, string pagingWhereClause, IList<string> orderBy, int count, bool reverse);
+        protected abstract string AddDelimiter(string identifier);
 
         private List<QpArticle> ParseQpArticleReader(DbDataReader reader, int contentId)
         {
@@ -234,6 +255,43 @@ namespace QP.GraphQL.DAL
 
             return result.SelectMany(t => t.Item1.Select(id => new Tuple<int, QpArticle>(id, t.Item2)))
                 .ToLookup(t => t.Item1, t => t.Item2);
+        }
+
+
+        private ILookup<int, QpArticle> ParseReaderForM2oLookup(DbDataReader reader, int contentId, string backwardFieldname)
+        {
+            var result = new List<Tuple<int, QpArticle>>();
+            while (reader.Read())
+            {
+                var article = new QpArticle(contentId);
+                int backward_id = 0;
+                for (var i = 0; i < reader.FieldCount; i++)
+                {
+                    var column = reader.GetName(i).ToLowerInvariant();
+
+                    if (string.Equals(column, "content_item_id", StringComparison.OrdinalIgnoreCase))
+                    {
+                        article.Id = reader.GetInt32(i);
+                    }
+                    else
+                    {
+                        if (string.Equals(column, backwardFieldname, StringComparison.OrdinalIgnoreCase))
+                        {
+                            backward_id = reader.GetInt32(i);
+                        }
+
+                        var val = reader.GetValue(i);
+                        article.AllFields.Add(column, val is DBNull ? null : val);
+                    }
+                }
+
+                if (article.Id > 0 && backward_id > 0)
+                {
+                    result.Add(new Tuple<int, QpArticle>(backward_id, article));
+                }
+            }
+
+            return result.ToLookup(t => t.Item1, t => t.Item2);
         }
 
         protected static string BuildOrderbyClause(IList<string> orderBy, bool reverse)
@@ -344,6 +402,5 @@ namespace QP.GraphQL.DAL
             }
             return whereBuilder.ToString();
         }
-
     }
 }

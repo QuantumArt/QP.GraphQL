@@ -11,6 +11,8 @@ namespace QP.GraphQL.DAL
 
         }
 
+        protected override string AddDelimiter(string identifier) => $"[{identifier}]";
+ 
         protected override string BuildIdsFieldClause()
         {
             return @$"
