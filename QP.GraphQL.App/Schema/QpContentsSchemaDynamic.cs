@@ -654,7 +654,7 @@ namespace QP.GraphQL.App.Schema
 
         private static QpArticleState GetQpArticleState(IDictionary<string, object> context)
         {
-            if (context.TryGetValue(GraphQLMiddleware.QpArticleStateField, out object value))
+            if (context.TryGetValue(ServicesExstension.QpArticleStateField, out object value))
             {
                 var state = value as QpArticleState?;
 
