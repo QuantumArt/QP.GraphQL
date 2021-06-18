@@ -14,12 +14,12 @@ namespace QP.GraphQL.DAL
 
         protected override string AddDelimiter(string identifier) => $"[{identifier}]";
  
-        protected override string BuildIdsFieldClause()
+        protected override string BuildIdsFieldClause(int linkId, QpArticleState state)
         {
             return @$"
-                STUFF((select ', ' + CONVERT(varchar(max),t.l_item_id)
-                from item_to_item t 
-                where t.r_item_id = item_to_item.r_item_id
+                STUFF((select ', ' + CONVERT(varchar(max),t.id)
+                from {GetLinkTable(linkId, state)} t 
+                where t.linked_id = {GetLinkTable(linkId, state)}.linked_id
                 FOR XML PATH('')
               ),1,1,'')";
         }

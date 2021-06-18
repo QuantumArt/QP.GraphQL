@@ -56,15 +56,15 @@ namespace QP.GraphQL.DAL
             var command = Connection.CreateCommand();
 
             command.CommandText = @$"
-                select m2m.l_item_ids, t.*
+                select m2m.item_ids, t.*
                 from
                 (select
-                    {BuildIdsFieldClause()} as l_item_ids,
-                    r_item_id 
-                 from item_to_item  
-                 where link_id={relationId} and l_item_id in ({String.Join(",", articleIds)})
-                 group by r_item_id) as m2m
-                 join {GetContentTable(contentId, state)} t on t.content_item_id = m2m.r_item_id
+                    {BuildIdsFieldClause(relationId, state)} as item_ids,
+                    linked_id 
+                 from {GetLinkTable(relationId, state)}
+                 where id in ({String.Join(",", articleIds)})
+                 group by linked_id) as m2m
+                 join {GetContentTable(contentId, state)} t on t.content_item_id = m2m.linked_id
                    where {BuildWhereClause(where)} {(orderBy != null && orderBy.Any() ? "order by " + BuildOrderbyClause(orderBy, false) : "")}";
             command.CommandType = CommandType.Text;
 
@@ -205,7 +205,7 @@ namespace QP.GraphQL.DAL
             }
         }
 
-        protected abstract string BuildIdsFieldClause();
+        protected abstract string BuildIdsFieldClause(int linkId, QpArticleState state);
         protected abstract string BuildLimitClause(int contentId, string whereClause, string pagingWhereClause, IList<string> orderBy, int count, bool reverse, QpArticleState state);
         protected abstract string AddDelimiter(string identifier);
 
@@ -406,6 +406,16 @@ namespace QP.GraphQL.DAL
                 whereBuilder.Append($"({leftPart} {op} {rightPart})");
             }
             return whereBuilder.ToString();
+        }
+
+        protected static string GetLinkTable(int linkId, QpArticleState state)
+        {
+            return state switch
+            {
+                QpArticleState.Live => $"item_link_{linkId}",
+                QpArticleState.Stage => $"item_link_{linkId}_united",
+                _ => null
+            };
         }
 
         protected static string GetContentTable(int contentId, QpArticleState state)

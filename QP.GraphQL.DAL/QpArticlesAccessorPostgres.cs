@@ -14,9 +14,9 @@ namespace QP.GraphQL.DAL
 
         protected override string AddDelimiter(string identifier) => $"\"{identifier.ToLowerInvariant()}\"";
 
-        protected override string BuildIdsFieldClause()
+        protected override string BuildIdsFieldClause(int linkId, QpArticleState state)
         {
-            return "array_to_string(array_agg(l_item_id), ',')";
+            return "array_to_string(array_agg(id), ',')";
         }
 
         protected override string BuildLimitClause(int contentId, string whereClause, string pagingWhereClause, IList<string> orderBy, int count, bool reverse, QpArticleState state)
