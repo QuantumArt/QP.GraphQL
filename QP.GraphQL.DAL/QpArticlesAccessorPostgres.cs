@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using QP.GraphQL.Interfaces.Articles;
 using System.Collections.Generic;
 using System.Data.Common;
 
@@ -13,14 +14,14 @@ namespace QP.GraphQL.DAL
 
         protected override string AddDelimiter(string identifier) => $"\"{identifier.ToLowerInvariant()}\"";
 
-        protected override string BuildIdsFieldClause()
+        protected override string BuildIdsFieldClause(int linkId, QpArticleState state, bool isBackward)
         {
-            return "array_to_string(array_agg(l_item_id), ',')";
+            return "array_to_string(array_agg(id), ',')";
         }
 
-        protected override string BuildLimitClause(int contentId, string whereClause, string pagingWhereClause, IList<string> orderBy, int count, bool reverse)
+        protected override string BuildLimitClause(int contentId, string whereClause, string pagingWhereClause, IList<string> orderBy, int count, bool reverse, QpArticleState state)
         {
-            return $"select * from content_{contentId}_live_new where {whereClause} and {pagingWhereClause} order by {BuildOrderbyClause(orderBy, reverse)} limit {count}";
+            return $"select * from {GetContentTable(contentId, state)} where {whereClause} and {pagingWhereClause} order by {BuildOrderbyClause(orderBy, reverse)} limit {count}";
         }
     }
 }

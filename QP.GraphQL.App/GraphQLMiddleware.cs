@@ -1,6 +1,3 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using GraphQL;
 using GraphQL.DataLoader;
 using GraphQL.Instrumentation;
@@ -8,7 +5,10 @@ using GraphQL.SystemTextJson;
 using GraphQL.Types;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
-using QP.GraphQL.App.Schema;
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace QP.GraphQL.App
 {
@@ -37,26 +37,9 @@ namespace QP.GraphQL.App
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "ASP.NET Core convention")]
         public async Task Invoke(HttpContext context, ISchema schema)
         {
-            if (!IsGraphQLRequest(context))
-            {
-                await _next(context);
-                return;
-            }
-
-            await ExecuteAsync(context, schema);
-        }
-
-        private bool IsGraphQLRequest(HttpContext context)
-        {
-            return context.Request.Path.StartsWithSegments(_settings.GraphQLPath)
-                && string.Equals(context.Request.Method, "POST", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private async Task ExecuteAsync(HttpContext context, ISchema schema)
-        {
             var start = DateTime.UtcNow;
-
             var request = await context.Request.Body.FromJsonAsync<GraphQLRequest>(context.RequestAborted);
+            var userContext = GetUserContext(context);
 
             var result = await _executer.ExecuteAsync(options =>
             {
@@ -64,7 +47,7 @@ namespace QP.GraphQL.App
                 options.Query = request.Query;
                 options.OperationName = request.OperationName;
                 options.Inputs = request.Variables;
-                //options.UserContext = _settings.BuildUserContext?.Invoke(context);
+                options.UserContext = userContext;
                 options.EnableMetrics = _settings.EnableMetrics;
                 options.RequestServices = context.RequestServices;
                 options.CancellationToken = context.RequestAborted;
@@ -77,6 +60,14 @@ namespace QP.GraphQL.App
             }
 
             await WriteResponseAsync(context, result, context.RequestAborted);
+        }
+
+        private IDictionary<string, object> GetUserContext(HttpContext context)
+        {
+            return new Dictionary<string, object>
+            {
+                { ServicesExstension.QpArticleStateField, context.GetState() }
+            };
         }
 
         private async Task WriteResponseAsync(HttpContext context, ExecutionResult result, CancellationToken cancellationToken)

@@ -12,6 +12,7 @@
         public int? RelatedO2mContentId { get; set; }
         public int? RelatedM2mContentId { get; set; }
         public int? M2mRelationId { get; set; }
+        public bool? M2mIsBackward { get; set; }
         public int? RelatedM2oContentId { get; set; }
         public string RelatedM2oBackwardField { get; set; }
     }

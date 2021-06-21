@@ -8,14 +8,12 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using QP.GraphQL.App.Schema;
 using QP.GraphQL.DAL;
 using QP.GraphQL.Interfaces.Articles;
 using QP.GraphQL.Interfaces.DAL;
 using QP.GraphQL.Interfaces.Metadata;
-using System;
 using System.Data.Common;
 using System.Text.Json.Serialization;
 
@@ -96,7 +94,6 @@ namespace QP.GraphQL.App
             //Warm up the listener
             app.ApplicationServices.GetService<SqlClientListener>();
 
-            app.UseMiddleware<GraphQLMiddleware>();
             app.UseGraphQLPlayground();
             app.UseGraphQLVoyager();
             app.UseGraphQLAltair();
@@ -107,6 +104,7 @@ namespace QP.GraphQL.App
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
+                endpoints.MapGraphQL(Configuration);
             });
         }
     }

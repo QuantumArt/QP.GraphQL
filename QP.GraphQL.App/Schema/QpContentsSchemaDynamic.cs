@@ -15,11 +15,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using GraphQLTypes = GraphQL.Types;
+using QP.GraphQL.App;
 
 namespace QP.GraphQL.App.Schema
 {
     public class QpContentsSchemaDynamic : GraphQLTypes.Schema
-    {
+    {        
         public Guid Id { get; private set; } = Guid.NewGuid();
         private readonly ILogger<QpContentsSchemaDynamic> _logger;
 
@@ -285,7 +286,7 @@ namespace QP.GraphQL.App.Schema
                             bool isM2m = false;
                             bool isO2m = false;
                             int relationContentId = 0;
-                            if (attribute.M2mRelationId.HasValue && attribute.RelatedM2mContentId.HasValue)
+                            if (attribute.M2mRelationId.HasValue && attribute.RelatedM2mContentId.HasValue && attribute.M2mIsBackward.HasValue)
                             {
                                 isM2m = true;
                                 relationContentId = attribute.RelatedM2mContentId.Value;
@@ -322,6 +323,8 @@ namespace QP.GraphQL.App.Schema
                                     Arguments = GetRelationArguments(filterGraphTypes, orderGraphTypes, relationContentId),
                                     Resolver = new FuncFieldResolver<QpArticle, IDataLoaderResult<IEnumerable<QpArticle>>>(context =>
                                     {
+                                        var state = GetQpArticleState(context.UserContext);
+                                        var isBackward = attribute.M2mIsBackward.Value;
                                         var orderArgs = GetOrderArguments(context);
                                         var filterArgs = GetFilterArguments(context, filterDefinitionsByContentTypes[relationContentId]);
                                         //нужно составить ключ для даталоадера с учётом сортировки и фильтра
@@ -331,10 +334,14 @@ namespace QP.GraphQL.App.Schema
                                         var loader = dataLoaderAccessor.Context.GetOrAddCollectionBatchLoader<int, QpArticle>($"M2M_{attribute.Id}_filter({filterArgsKey})_order({orderArgsKey})",
                                             (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>().GetRelatedM2mArticlesByIdList(
                                                 relationContentId, 
-                                                ids, 
+                                                ids,
                                                 Convert.ToInt32(context.Source.AllFields[attributeAlias]),
+                                                isBackward,
                                                 orderArgs,
-                                                filterArgs));
+                                                filterArgs,
+                                                state));
+                                        
+
 
                                         return loader.LoadAsync(context.Source.Id);
                                     })
@@ -350,9 +357,10 @@ namespace QP.GraphQL.App.Schema
                                     Arguments = null,
                                     Resolver = new FuncFieldResolver<QpArticle, IDataLoaderResult<QpArticle>>(context =>
                                     {
+                                        var state = GetQpArticleState(context.UserContext);
                                         var loader = dataLoaderAccessor.Context.GetOrAddBatchLoader<int, QpArticle>($"Batch_{relationContentId}",
                                             (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>()
-                                                        .GetArticlesByIdList(relationContentId, ids));
+                                                        .GetArticlesByIdList(relationContentId, ids, state));
 
                                         return loader.LoadAsync(Convert.ToInt32(context.Source.AllFields[attributeAlias]));
                                     })
@@ -395,6 +403,7 @@ namespace QP.GraphQL.App.Schema
                                     Arguments = GetRelationArguments(filterGraphTypes, orderGraphTypes, relationContentId),
                                     Resolver = new FuncFieldResolver<QpArticle, IDataLoaderResult<IEnumerable<QpArticle>>>(context =>
                                     {
+                                        var state = GetQpArticleState(context.UserContext);
                                         var orderArgs = GetOrderArguments(context);
                                         var filterArgs = GetFilterArguments(context, filterDefinitionsByContentTypes[relationContentId]);
                                         //нужно составить ключ для даталоадера с учётом сортировки и фильтра
@@ -407,7 +416,8 @@ namespace QP.GraphQL.App.Schema
                                                 ids,
                                                 backwardFieldName,
                                                 orderArgs,
-                                                filterArgs));
+                                                filterArgs,
+                                                state));
 
                                         return loader.LoadAsync(context.Source.Id);
                                     })
@@ -440,9 +450,10 @@ namespace QP.GraphQL.App.Schema
                     ),
                     Resolver = new FuncFieldResolver<QpArticle, IDataLoaderResult<QpArticle>>(context => 
                     {
+                        var state = GetQpArticleState(context.UserContext);
                         var loader = dataLoaderAccessor.Context.GetOrAddBatchLoader<int, QpArticle>($"Batch_{contentId}",
                                             (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>()
-                                                        .GetArticlesByIdList(contentId, ids));
+                                                        .GetArticlesByIdList(contentId, ids, state));
 
                         return loader.LoadAsync(Convert.ToInt32(context.GetArgument<int>("id")));
                     })
@@ -461,12 +472,14 @@ namespace QP.GraphQL.App.Schema
                     ),
                     Resolver = new AsyncFieldResolver<Connection<QpArticle, Edge<QpArticle>>>(async context =>
                     {
+                        var state = GetQpArticleState(context.UserContext);
                         var needTotalCount = context.SubFields.Any(f => f.Key == "totalCount");
                         var relayResult = await context.RequestServices.GetRequiredService<IQpArticlesAccessor>().GetPagedArticles(contentId, 
                                 GetOrderArguments(context), 
                                 GetFilterArguments(context, filterDefinitionsByContentTypes[contentId]),
                                 GetPaginationArguments(context),
-                                needTotalCount);
+                                needTotalCount,
+                                state);
                         return ToConnection(relayResult);
                     })
                 };
@@ -639,6 +652,21 @@ namespace QP.GraphQL.App.Schema
                 },
                 Edges = edges
             };
+        }
+
+        private static QpArticleState GetQpArticleState(IDictionary<string, object> context)
+        {
+            if (context.TryGetValue(ServicesExstension.QpArticleStateField, out object value))
+            {
+                var state = value as QpArticleState?;
+
+                if (state.HasValue)
+                {
+                    return state.Value;
+                }
+            }
+
+            return QpArticleState.Live;
         }
 
         protected override void Dispose(bool disposing)
