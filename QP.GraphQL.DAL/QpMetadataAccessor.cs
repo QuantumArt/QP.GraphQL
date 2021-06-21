@@ -36,7 +36,6 @@ namespace QP.GraphQL.DAL
 	                at.type_name as TypeName,
                     ca.index_flag as Indexed,
 	                ca.link_id as M2mRelationId,
-	                ctc.r_content_id as RelatedM2mContentId,
 					case   
                         when ctc.l_content_id = c.CONTENT_ID then ctc.r_content_id
                         when ctc.r_content_id = c.CONTENT_ID then ctc.l_content_id
