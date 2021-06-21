@@ -18,6 +18,7 @@ namespace QP.GraphQL.Interfaces.Articles
         Task<ILookup<int, QpArticle>> GetRelatedM2mArticlesByIdList(int contentId,
             IEnumerable<int> articleIds,
             int relationId,
+            bool isBackward,
             IList<string> orderBy,
             IEnumerable<QpFieldFilterClause> where,
             QpArticleState state);

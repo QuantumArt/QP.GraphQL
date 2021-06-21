@@ -37,6 +37,14 @@ namespace QP.GraphQL.DAL
                     ca.index_flag as Indexed,
 	                ca.link_id as M2mRelationId,
 	                ctc.r_content_id as RelatedM2mContentId,
+					case   
+                        when ctc.l_content_id = c.CONTENT_ID then ctc.r_content_id
+                        when ctc.r_content_id = c.CONTENT_ID then ctc.l_content_id
+                    end as RelatedM2mContentId,
+                    case   
+                        when ctc.l_content_id = c.CONTENT_ID then 0
+                        when ctc.r_content_id = c.CONTENT_ID then 1
+                    end as M2mIsBackward,
 	                rca.content_id as RelatedO2mContentId,
                     bca.content_id as RelatedM2oContentId,
                     bca.attribute_name as RelatedM2oBackwardField,

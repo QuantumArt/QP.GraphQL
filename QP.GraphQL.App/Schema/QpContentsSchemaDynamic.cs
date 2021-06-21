@@ -286,7 +286,7 @@ namespace QP.GraphQL.App.Schema
                             bool isM2m = false;
                             bool isO2m = false;
                             int relationContentId = 0;
-                            if (attribute.M2mRelationId.HasValue && attribute.RelatedM2mContentId.HasValue)
+                            if (attribute.M2mRelationId.HasValue && attribute.RelatedM2mContentId.HasValue && attribute.M2mIsBackward.HasValue)
                             {
                                 isM2m = true;
                                 relationContentId = attribute.RelatedM2mContentId.Value;
@@ -324,6 +324,7 @@ namespace QP.GraphQL.App.Schema
                                     Resolver = new FuncFieldResolver<QpArticle, IDataLoaderResult<IEnumerable<QpArticle>>>(context =>
                                     {
                                         var state = GetQpArticleState(context.UserContext);
+                                        var isBackward = attribute.M2mIsBackward.Value;
                                         var orderArgs = GetOrderArguments(context);
                                         var filterArgs = GetFilterArguments(context, filterDefinitionsByContentTypes[relationContentId]);
                                         //нужно составить ключ для даталоадера с учётом сортировки и фильтра
@@ -333,8 +334,9 @@ namespace QP.GraphQL.App.Schema
                                         var loader = dataLoaderAccessor.Context.GetOrAddCollectionBatchLoader<int, QpArticle>($"M2M_{attribute.Id}_filter({filterArgsKey})_order({orderArgsKey})",
                                             (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>().GetRelatedM2mArticlesByIdList(
                                                 relationContentId, 
-                                                ids, 
+                                                ids,
                                                 Convert.ToInt32(context.Source.AllFields[attributeAlias]),
+                                                isBackward,
                                                 orderArgs,
                                                 filterArgs,
                                                 state));

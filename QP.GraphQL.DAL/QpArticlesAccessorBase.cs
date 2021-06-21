@@ -46,6 +46,7 @@ namespace QP.GraphQL.DAL
         public async Task<ILookup<int, QpArticle>> GetRelatedM2mArticlesByIdList(int contentId,
             IEnumerable<int> articleIds,
             int relationId,
+            bool isBackward,
             IList<string> orderBy,
             IEnumerable<QpFieldFilterClause> where,
             QpArticleState state)
@@ -59,9 +60,9 @@ namespace QP.GraphQL.DAL
                 select m2m.item_ids, t.*
                 from
                 (select
-                    {BuildIdsFieldClause(relationId, state)} as item_ids,
+                    {BuildIdsFieldClause(relationId, state, isBackward)} as item_ids,
                     linked_id 
-                 from {GetLinkTable(relationId, state)}
+                 from {GetLinkTable(relationId, state, isBackward)}
                  where id in ({String.Join(",", articleIds)})
                  group by linked_id) as m2m
                  join {GetContentTable(contentId, state)} t on t.content_item_id = m2m.linked_id
@@ -205,7 +206,7 @@ namespace QP.GraphQL.DAL
             }
         }
 
-        protected abstract string BuildIdsFieldClause(int linkId, QpArticleState state);
+        protected abstract string BuildIdsFieldClause(int linkId, QpArticleState state, bool isBackward);
         protected abstract string BuildLimitClause(int contentId, string whereClause, string pagingWhereClause, IList<string> orderBy, int count, bool reverse, QpArticleState state);
         protected abstract string AddDelimiter(string identifier);
 
@@ -408,12 +409,14 @@ namespace QP.GraphQL.DAL
             return whereBuilder.ToString();
         }
 
-        protected static string GetLinkTable(int linkId, QpArticleState state)
+        protected static string GetLinkTable(int linkId, QpArticleState state, bool isBackward)
         {
+            string backward = isBackward ? "_rev" : null;
+
             return state switch
             {
-                QpArticleState.Live => $"item_link_{linkId}",
-                QpArticleState.Stage => $"item_link_{linkId}_united",
+                QpArticleState.Live => $"item_link_{linkId}{backward}",
+                QpArticleState.Stage => $"item_link_{linkId}_united{backward}",
                 _ => null
             };
         }
