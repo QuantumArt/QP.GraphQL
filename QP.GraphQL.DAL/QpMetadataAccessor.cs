@@ -30,6 +30,12 @@ namespace QP.GraphQL.DAL
 
             var query = $@"
                 select ca.attribute_id as Id,
+                    s.site_id as SiteId,
+                    s.upload_url_prefix as UploadUrlPrefix,
+                    s.upload_url as UploadUrl,
+                    s.use_absolute_upload_url as UseAbsoluteUploadUrl,
+                    s.dns as Dns,
+                    s.stage_dns as StageDns,
 	                ca.content_id as ContentId,
 	                ca.friendly_name as FriendlyName,
 	                ca.attribute_name as Alias,
@@ -55,8 +61,9 @@ namespace QP.GraphQL.DAL
                     ca.subfolder as SubFolder,
                     ca.use_site_library as UseSiteLibrary,
                     ca.persistent_attr_id as SourceAttributeId
-                from content_attribute ca
+                from content_attribute ca 
                 join content c on c.content_id = ca.content_id
+                join site s on c.site_id = s.site_id
                 join attribute_type at on at.attribute_type_id = ca.attribute_type_id
                 left join content_to_content ctc on ctc.link_id = ca.link_id
                 left join content_attribute rca on rca.attribute_id = ca.related_attribute_id
@@ -64,49 +71,40 @@ namespace QP.GraphQL.DAL
                 where c.content_id in ({(Settings.ContentIds == null || !Settings.ContentIds.Any() ? "select content_id from content" : String.Join(",", Settings.ContentIds))})
                 ";
 
-            var contentAttributesRaw = Connection.Query<QpContentAttributeMetadataInternal>(query).ToList();
+            var metadataItems = Connection.Query<QpMetadataItemInternal>(query).ToList();
+            var siteMap = new Dictionary<int, QpSiteMetadata>();
+            var contentMap = new Dictionary<int, QpContentMetadata>();
 
-            var result = new Dictionary<int, QpContentMetadata>();
-            var siteMap = GetSitesMetadata();
-
-
-            foreach (var contentAttributeRaw in contentAttributesRaw)
+            foreach (var metadataItem in metadataItems)
             {
-                QpContentMetadata content;
-                if (result.ContainsKey(contentAttributeRaw.ContentId))
+                QpSiteMetadata site;
+                if (contentMap.ContainsKey(metadataItem.SiteId))
                 {
-                    content = result[contentAttributeRaw.ContentId];
+                    site = siteMap[metadataItem.SiteId];
                 }
                 else
                 {
-                    content = contentAttributeRaw.ToContentMetadata();
-                    content.Site = siteMap[contentAttributeRaw.SiteId];
-                    result[contentAttributeRaw.ContentId] = content;
+                    site = metadataItem.ToSiteMetadata();
+                    siteMap[metadataItem.SiteId] = site;
                 }
 
-                var attribute = contentAttributeRaw.ToContentAttributeMetadata();
+                QpContentMetadata content;
+                if (contentMap.ContainsKey(metadataItem.ContentId))
+                {
+                    content = contentMap[metadataItem.ContentId];
+                }
+                else
+                {
+                    content = metadataItem.ToContentMetadata();
+                    content.Site = site;
+                    contentMap[metadataItem.ContentId] = content;
+                }
+
+                var attribute = metadataItem.ToContentAttributeMetadata();
                 attribute.Content = content;
                 content.Attributes.Add(attribute);
             }
-            return result;
-        }
-
-        private IDictionary<int, QpSiteMetadata> GetSitesMetadata()
-        {
-            if (Connection.State != ConnectionState.Open)
-                Connection.Open();
-
-            var query = $@"
-                select
-                    site_id as Id,
-                    upload_url_prefix as UploadUrlPrefix,
-                    upload_url as UploadUrl,
-                    use_absolute_upload_url as UseAbsoluteUploadUrl,
-                    dns as Dns,
-                    stage_dns as StageDns
-                from site";
-
-            return Connection.Query<QpSiteMetadataInternal>(query).ToDictionary(s => s.Id, s => s.ToSiteMetadata());
+            return contentMap;
         }
     }
 }

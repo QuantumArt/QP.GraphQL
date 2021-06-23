@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace QP.GraphQL.DAL
 {
-    internal class QpContentAttributeMetadataInternal
+    internal class QpMetadataItemInternal
     {
         public int Id { get; set; }
         public int ContentId { get; set; }
@@ -34,6 +34,19 @@ namespace QP.GraphQL.DAL
         public bool UseAbsoluteUploadUrl { get; set; }
         public string Dns { get; set; }
         public string StageDns { get; set; }
+
+        public QpSiteMetadata ToSiteMetadata()
+        {
+            return new QpSiteMetadata
+            {
+                Id = this.SiteId,
+                UploadUrlPrefix = this.UploadUrlPrefix,
+                UploadUrl = this.UploadUrl,
+                UseAbsoluteUploadUrl = this.UseAbsoluteUploadUrl,
+                Dns = this.Dns,
+                StageDns = this.StageDns
+            };
+        }
 
         public QpContentMetadata ToContentMetadata()
         {
