@@ -8,7 +8,6 @@ namespace QP.GraphQL.DAL
     {
         public int Id { get; set; }
         public int ContentId { get; set; }
-        public int SiteId { get; set; }
         public string FriendlyName { get; set; }
         public string Alias { get; set; }
         public string TypeName { get; set; }
@@ -28,7 +27,14 @@ namespace QP.GraphQL.DAL
         public string SubFolder { get; set; }
         public bool UseSiteLibrary { get; set; }
         public int? SourceAttributeId { get; set; }
-        
+
+        public int SiteId { get; set; }
+        public string UploadUrlPrefix { get; set; }
+        public string UploadUrl { get; set; }
+        public bool UseAbsoluteUploadUrl { get; set; }
+        public string Dns { get; set; }
+        public string StageDns { get; set; }
+
         public QpContentMetadata ToContentMetadata()
         {
             return new QpContentMetadata
