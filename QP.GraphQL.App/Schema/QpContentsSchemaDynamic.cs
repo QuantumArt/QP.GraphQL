@@ -16,6 +16,7 @@ using System.Collections.Generic;
 using System.Linq;
 using GraphQLTypes = GraphQL.Types;
 using QP.GraphQL.App;
+using QP.GraphQL.DAL;
 
 namespace QP.GraphQL.App.Schema
 {
@@ -279,7 +280,19 @@ namespace QP.GraphQL.App.Schema
                                 Description = attribute.FriendlyName,
                                 Type = typeof(UriGraphType),
                                 Arguments = null,
-                                Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.AllFields[attributeAlias])
+                                Resolver = new FuncFieldResolver<QpArticle, object>(context =>
+                                {
+                                    var url = context.Source.AllFields[attributeAlias] as string;
+
+                                    if (string.IsNullOrEmpty(url))
+                                    {
+                                        return null;
+                                    }
+                                    else
+                                    {
+                                        return $"{attribute.GetBaseUrl(true, false)}/{url}";
+                                    }
+                                })
                             };
                             break;
                         case "Relation":

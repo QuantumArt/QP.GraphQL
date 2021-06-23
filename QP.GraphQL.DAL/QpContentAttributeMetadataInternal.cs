@@ -8,6 +8,7 @@ namespace QP.GraphQL.DAL
     {
         public int Id { get; set; }
         public int ContentId { get; set; }
+        public int SiteId { get; set; }
         public string FriendlyName { get; set; }
         public string Alias { get; set; }
         public string TypeName { get; set; }
@@ -24,7 +25,10 @@ namespace QP.GraphQL.DAL
         public string ContentAliasSingular { get; set; }
         public string ContentAliasPlural { get; set; }
         public string ContentDescription { get; set; }
-
+        public string SubFolder { get; set; }
+        public bool UseSiteLibrary { get; set; }
+        public int? SourceAttributeId { get; set; }
+        
         public QpContentMetadata ToContentMetadata()
         {
             return new QpContentMetadata
@@ -53,7 +57,10 @@ namespace QP.GraphQL.DAL
                 M2mIsBackward = this.M2mIsBackward,
                 M2mRelationId = this.M2mRelationId,
                 RelatedM2oContentId = this.RelatedM2oContentId,
-                RelatedM2oBackwardField = this.RelatedM2oBackwardField
+                RelatedM2oBackwardField = this.RelatedM2oBackwardField,
+                SubFolder = this.SubFolder,
+                UseSiteLibrary = this.UseSiteLibrary,
+                SourceAttributeId = this.SourceAttributeId
             };
         }
     }

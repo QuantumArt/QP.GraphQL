@@ -47,10 +47,14 @@ namespace QP.GraphQL.DAL
 	                rca.content_id as RelatedO2mContentId,
                     bca.content_id as RelatedM2oContentId,
                     bca.attribute_name as RelatedM2oBackwardField,
+                    c.site_id as SiteId,
 	                c.content_name as ContentFriendlyName,
 	                c.net_content_name as ContentAliasSingular,
 	                c.net_plural_content_name as ContentAliasPlural,
-	                c.description as ContentDescription
+	                c.description as ContentDescription,
+                    ca.subfolder as SubFolder,
+                    ca.use_site_library as UseSiteLibrary,
+                    ca.persistent_attr_id as SourceAttributeId
                 from content_attribute ca
                 join content c on c.content_id = ca.content_id
                 join attribute_type at on at.attribute_type_id = ca.attribute_type_id
@@ -63,6 +67,9 @@ namespace QP.GraphQL.DAL
             var contentAttributesRaw = Connection.Query<QpContentAttributeMetadataInternal>(query).ToList();
 
             var result = new Dictionary<int, QpContentMetadata>();
+            var siteMap = GetSitesMetadata();
+
+
             foreach (var contentAttributeRaw in contentAttributesRaw)
             {
                 QpContentMetadata content;
@@ -73,12 +80,33 @@ namespace QP.GraphQL.DAL
                 else
                 {
                     content = contentAttributeRaw.ToContentMetadata();
+                    content.Site = siteMap[contentAttributeRaw.SiteId];
                     result[contentAttributeRaw.ContentId] = content;
                 }
 
-                content.Attributes.Add(contentAttributeRaw.ToContentAttributeMetadata());
+                var attribute = contentAttributeRaw.ToContentAttributeMetadata();
+                attribute.Content = content;
+                content.Attributes.Add(attribute);
             }
             return result;
+        }
+
+        private IDictionary<int, QpSiteMetadata> GetSitesMetadata()
+        {
+            if (Connection.State != ConnectionState.Open)
+                Connection.Open();
+
+            var query = $@"
+                select
+                    site_id as Id,
+                    upload_url_prefix as UploadUrlPrefix,
+                    upload_url as UploadUrl,
+                    use_absolute_upload_url as UseAbsoluteUploadUrl,
+                    dns as Dns,
+                    stage_dns as StageDns
+                from site";
+
+            return Connection.Query<QpSiteMetadataInternal>(query).ToDictionary(s => s.Id, s => s.ToSiteMetadata());
         }
     }
 }
