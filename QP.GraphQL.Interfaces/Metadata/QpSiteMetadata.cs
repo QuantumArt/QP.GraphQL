@@ -8,5 +8,6 @@
         public bool UseAbsoluteUploadUrl { get; set; }
         public string Dns { get; set; }
         public string StageDns { get; set; }
+        public bool ReplaceUrls { get; set; }
     }
 }

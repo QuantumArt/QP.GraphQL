@@ -34,6 +34,7 @@ namespace QP.GraphQL.DAL
         public bool UseAbsoluteUploadUrl { get; set; }
         public string Dns { get; set; }
         public string StageDns { get; set; }
+        public bool ReplaceUrls { get; set; }
 
         public QpSiteMetadata ToSiteMetadata()
         {
@@ -44,7 +45,8 @@ namespace QP.GraphQL.DAL
                 UploadUrl = this.UploadUrl,
                 UseAbsoluteUploadUrl = this.UseAbsoluteUploadUrl,
                 Dns = this.Dns,
-                StageDns = this.StageDns
+                StageDns = this.StageDns,
+                ReplaceUrls = this.ReplaceUrls
             };
         }
 

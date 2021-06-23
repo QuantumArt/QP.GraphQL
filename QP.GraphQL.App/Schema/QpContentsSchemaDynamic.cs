@@ -273,7 +273,6 @@ namespace QP.GraphQL.App.Schema
                         case "File":
                         case "Image":
                         case "Dynamic Image":
-                            //TODO: нужно генерировать полную ссылку на файл здесь, с учётом настроек QP
                             f = new FieldType
                             {
                                 Name = ClearifyGraphName(attribute.Alias),

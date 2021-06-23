@@ -36,6 +36,7 @@ namespace QP.GraphQL.DAL
                     s.use_absolute_upload_url as UseAbsoluteUploadUrl,
                     s.dns as Dns,
                     s.stage_dns as StageDns,
+                    s.replace_urls as ReplaceUrls,
 	                ca.content_id as ContentId,
 	                ca.friendly_name as FriendlyName,
 	                ca.attribute_name as Alias,
@@ -53,7 +54,6 @@ namespace QP.GraphQL.DAL
 	                rca.content_id as RelatedO2mContentId,
                     bca.content_id as RelatedM2oContentId,
                     bca.attribute_name as RelatedM2oBackwardField,
-                    c.site_id as SiteId,
 	                c.content_name as ContentFriendlyName,
 	                c.net_content_name as ContentAliasSingular,
 	                c.net_plural_content_name as ContentAliasPlural,
@@ -78,7 +78,7 @@ namespace QP.GraphQL.DAL
             foreach (var metadataItem in metadataItems)
             {
                 QpSiteMetadata site;
-                if (contentMap.ContainsKey(metadataItem.SiteId))
+                if (siteMap.ContainsKey(metadataItem.SiteId))
                 {
                     site = siteMap[metadataItem.SiteId];
                 }
