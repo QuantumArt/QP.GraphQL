@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: graphql-service
+  namespace: qp
+  labels:
+    app: graphql-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: graphql-service
+  template:
+    metadata:
+      labels:
+        app: graphql-service
+        logging: enabled
+    spec:
+      containers:
+        - name: graphql-service
+          image: ||registry||/qp-graphql-service:||version||
+          env:
+            - name: Param1
+              value: value1    
+          ports:
+            - containerPort: 80

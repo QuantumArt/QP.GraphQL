@@ -7,6 +7,7 @@
 * [4. Structured logging](#structuredlogging)
 * [5. Trace SQL](#tracesql)
 * [6. Reload Schema](#reloadschema)
+* [7. Deployment](#deployment)
 
 ## 1. Introduction <a name="introduction"></a>
 
@@ -76,3 +77,60 @@ One can reload the schema directly in the browser console:
 ```javascript
 await (await fetch('/api/schema/reload', { method: 'POST' })).json();
 ```
+
+## 4. Deployment <a name="deployment"></a>
+### 4.1 Docker
+
+One can build and run docker containers manually. It's the easiest way to run the application. Here basic commands for docker.
+
+Build image
+```console
+docker build -t qp.graphql -f QP.GraphQL.App/Dockerfile .
+```
+Run the application in docker container on port 8889
+```console
+docker run -it -p 8889:80 -e ConnectionStrings__QPConnectionString="{db connection}" -e ConnectionStrings__Type="{db type}" --rm --name=qp.graphql qp.graphql
+```
+where
+* `{db connection}` is the database connection
+* `{db type}` is the database type whether `SqlServer` or `Postgres` 
+
+Stop container if running
+```console
+docker stop qp.graphql
+```
+
+
+Application is available on
+[Localhost](http://localhost:8889/ui/playground)
+
+
+### 4.2 Docker registry
+
+#### 4.2.1 Updating git repository
+For publishing the image with new tag one should push to git a label with corresponding name. Generally it's a product version.
+
+#### 4.2.2 Running build
+To buld the image and place it to registry one should run the build
+[Images.Backend](https://tfs.dev.qsupport.ru/tfs/QuantumartCollection/QP/_build?definitionId=1535)
+
+#### 4.2.3 Checking the registry
+
+After build finishes the image `qp-graphql-service` must be in registry images list:
+[Docker registry](http://spbdocker03:5000/v2/_catalog).
+Also avaliable image tags can be seen here:
+[Image tags](http://spbdocker03:5000/v2/qp-graphql-service/tags/list).
+
+#### 4.2.3 Running the application
+```console
+docker run -it -p 8890:80 -e ConnectionStrings__QPConnectionString="{db connection}" -e ConnectionStrings__Type="{db type}" --rm --name=qp-graphql-service spbdocker03:5000/qp-graphql-service:{tag}
+```
+where
+* `{tag}` is application version
+* `{db connection}` is the database connection
+* `{db type}` is the database type whether `SqlServer` or `Postgres` 
+
+Application is available on
+[Localhost](http://localhost:8890/ui/playground)
+
+### 4.3 Kubernetis

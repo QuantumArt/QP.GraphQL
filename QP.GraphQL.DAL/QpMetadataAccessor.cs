@@ -30,6 +30,16 @@ namespace QP.GraphQL.DAL
 
             var query = $@"
                 select ca.attribute_id as Id,
+                    s.site_id as SiteId,
+                    s.upload_url_prefix as UploadUrlPrefix,
+                    s.upload_url as UploadUrl,
+                    s.use_absolute_upload_url as UseAbsoluteUploadUrl,
+                    s.dns as Dns,
+                    s.stage_dns as StageDns,
+                    s.replace_urls as ReplaceUrls,
+                    s.live_virtual_root as LiveVirtualRoot,
+                    s.stage_virtual_root as StageVirtualRoot,
+                    s.is_live as IsLive,
 	                ca.content_id as ContentId,
 	                ca.friendly_name as FriendlyName,
 	                ca.attribute_name as Alias,
@@ -50,9 +60,13 @@ namespace QP.GraphQL.DAL
 	                c.content_name as ContentFriendlyName,
 	                c.net_content_name as ContentAliasSingular,
 	                c.net_plural_content_name as ContentAliasPlural,
-	                c.description as ContentDescription
-                from content_attribute ca
+	                c.description as ContentDescription,
+                    ca.subfolder as SubFolder,
+                    ca.use_site_library as UseSiteLibrary,
+                    ca.persistent_attr_id as SourceAttributeId
+                from content_attribute ca 
                 join content c on c.content_id = ca.content_id
+                join site s on c.site_id = s.site_id
                 join attribute_type at on at.attribute_type_id = ca.attribute_type_id
                 left join content_to_content ctc on ctc.link_id = ca.link_id
                 left join content_attribute rca on rca.attribute_id = ca.related_attribute_id
@@ -60,25 +74,40 @@ namespace QP.GraphQL.DAL
                 where c.content_id in ({(Settings.ContentIds == null || !Settings.ContentIds.Any() ? "select content_id from content" : String.Join(",", Settings.ContentIds))})
                 ";
 
-            var contentAttributesRaw = Connection.Query<QpContentAttributeMetadataInternal>(query).ToList();
+            var metadataItems = Connection.Query<QpMetadataItemInternal>(query).ToList();
+            var siteMap = new Dictionary<int, QpSiteMetadata>();
+            var contentMap = new Dictionary<int, QpContentMetadata>();
 
-            var result = new Dictionary<int, QpContentMetadata>();
-            foreach (var contentAttributeRaw in contentAttributesRaw)
+            foreach (var metadataItem in metadataItems)
             {
-                QpContentMetadata content;
-                if (result.ContainsKey(contentAttributeRaw.ContentId))
+                QpSiteMetadata site;
+                if (siteMap.ContainsKey(metadataItem.SiteId))
                 {
-                    content = result[contentAttributeRaw.ContentId];
+                    site = siteMap[metadataItem.SiteId];
                 }
                 else
                 {
-                    content = contentAttributeRaw.ToContentMetadata();
-                    result[contentAttributeRaw.ContentId] = content;
+                    site = metadataItem.ToSiteMetadata(true, false, false);
+                    siteMap[metadataItem.SiteId] = site;
                 }
 
-                content.Attributes.Add(contentAttributeRaw.ToContentAttributeMetadata());
+                QpContentMetadata content;
+                if (contentMap.ContainsKey(metadataItem.ContentId))
+                {
+                    content = contentMap[metadataItem.ContentId];
+                }
+                else
+                {
+                    content = metadataItem.ToContentMetadata();
+                    content.Site = site;
+                    contentMap[metadataItem.ContentId] = content;
+                }
+
+                var attribute = metadataItem.ToContentAttributeMetadata();
+                attribute.Content = content;
+                content.Attributes.Add(attribute);
             }
-            return result;
+            return contentMap;
         }
     }
 }

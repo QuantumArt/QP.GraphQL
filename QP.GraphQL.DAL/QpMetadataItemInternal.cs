@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace QP.GraphQL.DAL
 {
-    internal class QpContentAttributeMetadataInternal
+    internal class QpMetadataItemInternal
     {
         public int Id { get; set; }
         public int ContentId { get; set; }
@@ -24,6 +24,41 @@ namespace QP.GraphQL.DAL
         public string ContentAliasSingular { get; set; }
         public string ContentAliasPlural { get; set; }
         public string ContentDescription { get; set; }
+        public string SubFolder { get; set; }
+        public bool UseSiteLibrary { get; set; }
+        public int? SourceAttributeId { get; set; }
+
+        public int SiteId { get; set; }
+        public string UploadUrlPrefix { get; set; }
+        public string UploadUrl { get; set; }
+        public bool UseAbsoluteUploadUrl { get; set; }
+        public string Dns { get; set; }
+        public string StageDns { get; set; }
+        public bool ReplaceUrls { get; set; }
+        public string LiveVirtualRoot { get; set; }
+        public string StageVirtualRoot { get; set; }
+        public string IsLive { get; set; }
+
+        public QpSiteMetadata ToSiteMetadata(bool asShortAsPossible, bool removeSchema, bool isRelative)
+        {
+            var site = new QpSiteMetadata
+            {
+                Id = this.SiteId,
+                UploadUrlPrefix = this.UploadUrlPrefix,
+                UploadUrl = this.UploadUrl,
+                UseAbsoluteUploadUrl = this.UseAbsoluteUploadUrl,
+                Dns = this.Dns,
+                StageDns = this.StageDns,
+                ReplaceUrls = this.ReplaceUrls,
+                LiveVirtualRoot = this.LiveVirtualRoot,
+                StageVirtualRoot = this.StageVirtualRoot,
+                IsLive = this.IsLive == "1"
+            };
+
+            site.UploadUrlPlaceholderValue = site.GetImagesUploadUrl(asShortAsPossible, removeSchema);
+            site.SiteUrlPlaceholderValue = isRelative ? site.GetSiteUrlRel() : site.GetSiteUrl();
+            return site;
+        }
 
         public QpContentMetadata ToContentMetadata()
         {
@@ -53,7 +88,10 @@ namespace QP.GraphQL.DAL
                 M2mIsBackward = this.M2mIsBackward,
                 M2mRelationId = this.M2mRelationId,
                 RelatedM2oContentId = this.RelatedM2oContentId,
-                RelatedM2oBackwardField = this.RelatedM2oBackwardField
+                RelatedM2oBackwardField = this.RelatedM2oBackwardField,
+                SubFolder = this.SubFolder,
+                UseSiteLibrary = this.UseSiteLibrary,
+                SourceAttributeId = this.SourceAttributeId
             };
         }
     }

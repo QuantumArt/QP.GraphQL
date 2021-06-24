@@ -5,6 +5,7 @@ namespace QP.GraphQL.Interfaces.Metadata
     public class QpContentMetadata
     {
         public int Id { get; set; }
+        public QpSiteMetadata Site { get; set; }
         public string FriendlyName { get; set; }
         public string AliasSingular { get; set; }
         public string AliasPlural { get; set; }

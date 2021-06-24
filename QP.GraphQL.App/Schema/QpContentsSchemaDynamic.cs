@@ -16,6 +16,8 @@ using System.Collections.Generic;
 using System.Linq;
 using GraphQLTypes = GraphQL.Types;
 using QP.GraphQL.App;
+using QP.GraphQL.DAL;
+using Microsoft.Extensions.Options;
 
 namespace QP.GraphQL.App.Schema
 {
@@ -23,6 +25,7 @@ namespace QP.GraphQL.App.Schema
     {        
         public Guid Id { get; private set; } = Guid.NewGuid();
         private readonly ILogger<QpContentsSchemaDynamic> _logger;
+        private readonly GraphQLSettings _settings;
 
         public QpContentsSchemaDynamic(IServiceProvider serviceProvider, 
             IDataLoaderContextAccessor dataLoaderAccessor,
@@ -224,7 +227,8 @@ namespace QP.GraphQL.App.Schema
                                 Description = attribute.FriendlyName,
                                 Type = typeof(StringGraphType),
                                 Arguments = null,
-                                Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.AllFields[attributeAlias])
+                                Resolver = new FuncFieldResolver<QpArticle, object>(context => attribute.Content.Site.ReplacePlaceholders(
+                                    context.Source.AllFields[attributeAlias] as string))
                             };
                             break;
                         case "Numeric":
@@ -272,14 +276,25 @@ namespace QP.GraphQL.App.Schema
                         case "File":
                         case "Image":
                         case "Dynamic Image":
-                            //TODO: нужно генерировать полную ссылку на файл здесь, с учётом настроек QP
                             f = new FieldType
                             {
                                 Name = ClearifyGraphName(attribute.Alias),
                                 Description = attribute.FriendlyName,
                                 Type = typeof(UriGraphType),
                                 Arguments = null,
-                                Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.AllFields[attributeAlias])
+                                Resolver = new FuncFieldResolver<QpArticle, object>(context =>
+                                {
+                                    var url = context.Source.AllFields[attributeAlias] as string;
+
+                                    if (string.IsNullOrEmpty(url))
+                                    {
+                                        return null;
+                                    }
+                                    else
+                                    {
+                                        return $"{attribute.GetBaseUrl(true, false)}/{url}";
+                                    }
+                                })
                             };
                             break;
                         case "Relation":
