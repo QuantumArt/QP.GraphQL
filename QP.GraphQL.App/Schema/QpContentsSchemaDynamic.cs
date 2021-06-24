@@ -17,6 +17,7 @@ using System.Linq;
 using GraphQLTypes = GraphQL.Types;
 using QP.GraphQL.App;
 using QP.GraphQL.DAL;
+using Microsoft.Extensions.Options;
 
 namespace QP.GraphQL.App.Schema
 {
@@ -24,6 +25,7 @@ namespace QP.GraphQL.App.Schema
     {        
         public Guid Id { get; private set; } = Guid.NewGuid();
         private readonly ILogger<QpContentsSchemaDynamic> _logger;
+        private readonly GraphQLSettings _settings;
 
         public QpContentsSchemaDynamic(IServiceProvider serviceProvider, 
             IDataLoaderContextAccessor dataLoaderAccessor,
@@ -225,7 +227,11 @@ namespace QP.GraphQL.App.Schema
                                 Description = attribute.FriendlyName,
                                 Type = typeof(StringGraphType),
                                 Arguments = null,
-                                Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.AllFields[attributeAlias])
+                                Resolver = new FuncFieldResolver<QpArticle, object>(context => attribute.ReplacePlaceholders(
+                                    context.Source.AllFields[attributeAlias] as string,
+                                    true,
+                                    false,
+                                    false))
                             };
                             break;
                         case "Numeric":

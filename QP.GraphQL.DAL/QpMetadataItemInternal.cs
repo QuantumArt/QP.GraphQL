@@ -35,6 +35,9 @@ namespace QP.GraphQL.DAL
         public string Dns { get; set; }
         public string StageDns { get; set; }
         public bool ReplaceUrls { get; set; }
+        public string LiveVirtualRoot { get; set; }
+        public string StageVirtualRoot { get; set; }
+        public string IsLive { get; set; }
 
         public QpSiteMetadata ToSiteMetadata()
         {
@@ -46,7 +49,10 @@ namespace QP.GraphQL.DAL
                 UseAbsoluteUploadUrl = this.UseAbsoluteUploadUrl,
                 Dns = this.Dns,
                 StageDns = this.StageDns,
-                ReplaceUrls = this.ReplaceUrls
+                ReplaceUrls = this.ReplaceUrls,
+                LiveVirtualRoot = this.LiveVirtualRoot,
+                StageVirtualRoot = this.StageVirtualRoot,
+                IsLive = this.IsLive == "1"
             };
         }
 

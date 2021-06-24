@@ -7,6 +7,24 @@ namespace QP.GraphQL.DAL
 {
     public static class MediaExtension
     {
+        private const string UploadPlaceholder = "<%=upload_url%>";
+        private const string SitePlaceholder = "<%=site_url%>";
+
+        public static string ReplacePlaceholders(this QpContentAttributeMetadata attribute, string input, bool asShortAsPossible, bool removeSchema, bool isRelative)
+        {
+            string result = input;
+            if (!string.IsNullOrEmpty(result) && attribute.Content.Site.ReplaceUrls)
+            {
+                var site = attribute.Content.Site;
+                var uploadUrl = GetImagesUploadUrl(attribute, asShortAsPossible, removeSchema);
+                var siteUrl = isRelative ? GetSiteUrlRel(site) :  GetSiteUrl(site);
+
+                result = result.Replace(UploadPlaceholder, uploadUrl);
+                result = result.Replace(SitePlaceholder, siteUrl);
+            }
+            return result;
+        }
+
         public static string GetBaseUrl(this QpContentAttributeMetadata attribute, bool asShortAsPossible, bool removeSchema)
         {
             if (!new[] { "File", "Image", "Dynamic Image" }.Contains(attribute.TypeName))
@@ -21,7 +39,7 @@ namespace QP.GraphQL.DAL
         private static string GetContentUploadUrlByID(QpContentAttributeMetadata attribute, bool asShortAsPossible, bool removeSchema)
         {
             var sb = new StringBuilder();
-            sb.Append(GetUploadUrl(attribute, asShortAsPossible, removeSchema));
+            sb.Append(GetUploadUrl(attribute.Content.Site, asShortAsPossible, removeSchema));
             if (sb[sb.Length - 1] != '/')
             {
                 sb.Append("/");
@@ -64,12 +82,12 @@ namespace QP.GraphQL.DAL
             return result;
         }
 
-        private static string GetImagesUploadUrl(QpContentAttributeMetadata attribute, bool asShortAsPossible, bool removeSchema) => GetUploadUrl(attribute, asShortAsPossible, removeSchema) + "images";
+        private static string GetImagesUploadUrl(QpContentAttributeMetadata attribute, bool asShortAsPossible, bool removeSchema) => GetUploadUrl(attribute.Content.Site, asShortAsPossible, removeSchema) + "images";
 
-        private static string GetUploadUrl(QpContentAttributeMetadata attribute, bool asShortAsPossible, bool removeSchema)
+        private static string GetUploadUrl(QpSiteMetadata site, bool asShortAsPossible, bool removeSchema)
         {
             var sb = new StringBuilder();
-            var prefix = GetUploadUrlPrefix(attribute);
+            var prefix = GetUploadUrlPrefix(site);
             if (!string.IsNullOrEmpty(prefix))
             {
                 if (removeSchema)
@@ -85,11 +103,11 @@ namespace QP.GraphQL.DAL
                 {
                     sb.Append(!removeSchema ? "http://" : "//");
 
-                    sb.Append(GetDns(attribute, true));
+                    sb.Append(GetDns(site, true));
                 }
             }
 
-            sb.Append(attribute.Content.Site.UploadUrl);
+            sb.Append(site.UploadUrl);
 
             return sb.ToString();
         }
@@ -104,14 +122,28 @@ namespace QP.GraphQL.DAL
             return prefix;
         }
 
-        private static string GetUploadUrlPrefix(QpContentAttributeMetadata attribute)
+        private static string GetUploadUrlPrefix(QpSiteMetadata site)
         {
-            return attribute.Content.Site.UseAbsoluteUploadUrl ? attribute.Content.Site.UploadUrlPrefix : string.Empty;
+            return site.UseAbsoluteUploadUrl ? site.UploadUrlPrefix : string.Empty;
         }
 
-        private static string GetDns(QpContentAttributeMetadata attribute, bool isLive)
+        private static string GetDns(QpSiteMetadata site, bool isLive)
         {
-            return isLive || string.IsNullOrEmpty(attribute.Content.Site.StageDns) ? attribute.Content.Site.Dns : attribute.Content.Site.StageDns;
+            return isLive || string.IsNullOrEmpty(site.StageDns) ? site.Dns : site.StageDns;
+        }
+
+        private static string GetSiteUrl(QpSiteMetadata site)
+        {
+            var sb = new StringBuilder();
+            sb.Append("http://");
+            sb.Append(GetDns(site, site.IsLive));
+            sb.Append(GetSiteUrlRel(site));
+            return sb.ToString();
+        }
+
+        private static string GetSiteUrlRel(QpSiteMetadata site)
+        {
+            return site.IsLive ? site.LiveVirtualRoot : site.StageVirtualRoot;
         }
     }
 }

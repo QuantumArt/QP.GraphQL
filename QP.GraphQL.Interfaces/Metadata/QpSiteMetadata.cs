@@ -9,5 +9,8 @@
         public string Dns { get; set; }
         public string StageDns { get; set; }
         public bool ReplaceUrls { get; set; }
+        public string LiveVirtualRoot { get; set; }
+        public string StageVirtualRoot { get; set; }
+        public bool IsLive { get; set; }    
     }
 }

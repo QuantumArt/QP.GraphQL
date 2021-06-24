@@ -11,6 +11,7 @@ COPY ["QP.GraphQL.Interfaces/QP.GraphQL.Interfaces.csproj", "QP.GraphQL.Interfac
 COPY ["QP.GraphQL.DAL/QP.GraphQL.DAL.csproj", "QP.GraphQL.DAL/"]
 RUN dotnet restore "QP.GraphQL.App/QP.GraphQL.App.csproj"
 COPY . .
+COPY ["QP.GraphQL.App/nlog.Docker.config", "QP.GraphQL.App/nlog.config"]
 WORKDIR "/src/QP.GraphQL.App"
 RUN dotnet build "QP.GraphQL.App.csproj" -c Release -o /app/build
 
@@ -18,6 +19,7 @@ FROM build AS publish
 RUN dotnet publish "QP.GraphQL.App.csproj" -c Release -o /app/publish
 
 FROM base AS final
+WORKDIR /app
 WORKDIR /app
 COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "QP.GraphQL.App.dll"]
