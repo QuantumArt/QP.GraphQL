@@ -123,7 +123,7 @@ Also avaliable image tags can be seen here:
 
 #### 4.2.3 Running the application
 ```console
-docker run -it -p 8890:80 -e ASPNETCORE_ConnectionStrings__QPConnectionString="{db connection}" -e ASPNETCORE_ConnectionStrings__Type="{db type}" --rm --name=smartcode spbdocker03:5000/qp-graphql-service:{tag}
+docker run -it -p 8890:80 -e ASPNETCORE_ConnectionStrings__QPConnectionString="{db connection}" -e ASPNETCORE_ConnectionStrings__Type="{db type}" --rm --name=qp-graphql-service spbdocker03:5000/qp-graphql-service:{tag}
 ```
 where
 * `{tag}` is application version
@@ -131,6 +131,6 @@ where
 * `{db type}` is the database type whether `SqlServer` or `Postgres` 
 
 Application is available on
-[Localhost](http://localhost:8890/api/)
+[Localhost](http://localhost:8890/ui/playground)
 
 ### 4.3 Kubernetis
