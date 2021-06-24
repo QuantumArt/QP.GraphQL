@@ -227,11 +227,8 @@ namespace QP.GraphQL.App.Schema
                                 Description = attribute.FriendlyName,
                                 Type = typeof(StringGraphType),
                                 Arguments = null,
-                                Resolver = new FuncFieldResolver<QpArticle, object>(context => attribute.ReplacePlaceholders(
-                                    context.Source.AllFields[attributeAlias] as string,
-                                    true,
-                                    false,
-                                    false))
+                                Resolver = new FuncFieldResolver<QpArticle, object>(context => attribute.Content.Site.ReplacePlaceholders(
+                                    context.Source.AllFields[attributeAlias] as string))
                             };
                             break;
                         case "Numeric":

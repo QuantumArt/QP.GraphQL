@@ -10,18 +10,16 @@ namespace QP.GraphQL.DAL
         private const string UploadPlaceholder = "<%=upload_url%>";
         private const string SitePlaceholder = "<%=site_url%>";
 
-        public static string ReplacePlaceholders(this QpContentAttributeMetadata attribute, string input, bool asShortAsPossible, bool removeSchema, bool isRelative)
-        {
+        public static string ReplacePlaceholders(this QpSiteMetadata site, string input)
+        {  
             string result = input;
-            if (!string.IsNullOrEmpty(result) && attribute.Content.Site.ReplaceUrls)
-            {
-                var site = attribute.Content.Site;
-                var uploadUrl = GetImagesUploadUrl(attribute, asShortAsPossible, removeSchema);
-                var siteUrl = isRelative ? GetSiteUrlRel(site) :  GetSiteUrl(site);
 
-                result = result.Replace(UploadPlaceholder, uploadUrl);
-                result = result.Replace(SitePlaceholder, siteUrl);
+            if (!string.IsNullOrEmpty(result) && site.ReplaceUrls)
+            {
+                result = result.Replace(UploadPlaceholder, site.UploadUrlPlaceholderValue);
+                result = result.Replace(SitePlaceholder, site.SiteUrlPlaceholderValue);
             }
+
             return result;
         }
 
@@ -32,7 +30,7 @@ namespace QP.GraphQL.DAL
                 throw new ArgumentException();
             }
 
-            var baseUrl = attribute.UseSiteLibrary ? GetImagesUploadUrl(attribute, asShortAsPossible, removeSchema) : GetContentUploadUrlByID(attribute, asShortAsPossible, removeSchema);
+            var baseUrl = attribute.UseSiteLibrary ? GetImagesUploadUrl(attribute.Content.Site, asShortAsPossible, removeSchema) : GetContentUploadUrlByID(attribute, asShortAsPossible, removeSchema);
             return CombineWithoutDoubleSlashes(baseUrl, GetFieldSubUrl(attribute));
         }
 
@@ -82,7 +80,7 @@ namespace QP.GraphQL.DAL
             return result;
         }
 
-        private static string GetImagesUploadUrl(QpContentAttributeMetadata attribute, bool asShortAsPossible, bool removeSchema) => GetUploadUrl(attribute.Content.Site, asShortAsPossible, removeSchema) + "images";
+        public static string GetImagesUploadUrl(this QpSiteMetadata site, bool asShortAsPossible, bool removeSchema) => GetUploadUrl(site, asShortAsPossible, removeSchema) + "images";
 
         private static string GetUploadUrl(QpSiteMetadata site, bool asShortAsPossible, bool removeSchema)
         {
@@ -132,7 +130,7 @@ namespace QP.GraphQL.DAL
             return isLive || string.IsNullOrEmpty(site.StageDns) ? site.Dns : site.StageDns;
         }
 
-        private static string GetSiteUrl(QpSiteMetadata site)
+        public static string GetSiteUrl(this QpSiteMetadata site)
         {
             var sb = new StringBuilder();
             sb.Append("http://");
@@ -141,7 +139,7 @@ namespace QP.GraphQL.DAL
             return sb.ToString();
         }
 
-        private static string GetSiteUrlRel(QpSiteMetadata site)
+        public static string GetSiteUrlRel(this QpSiteMetadata site)
         {
             return site.IsLive ? site.LiveVirtualRoot : site.StageVirtualRoot;
         }

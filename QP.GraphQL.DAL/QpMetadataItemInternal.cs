@@ -39,9 +39,9 @@ namespace QP.GraphQL.DAL
         public string StageVirtualRoot { get; set; }
         public string IsLive { get; set; }
 
-        public QpSiteMetadata ToSiteMetadata()
+        public QpSiteMetadata ToSiteMetadata(bool asShortAsPossible, bool removeSchema, bool isRelative)
         {
-            return new QpSiteMetadata
+            var site = new QpSiteMetadata
             {
                 Id = this.SiteId,
                 UploadUrlPrefix = this.UploadUrlPrefix,
@@ -54,6 +54,10 @@ namespace QP.GraphQL.DAL
                 StageVirtualRoot = this.StageVirtualRoot,
                 IsLive = this.IsLive == "1"
             };
+
+            site.UploadUrlPlaceholderValue = site.GetImagesUploadUrl(asShortAsPossible, removeSchema);
+            site.SiteUrlPlaceholderValue = isRelative ? site.GetSiteUrlRel() : site.GetSiteUrl();
+            return site;
         }
 
         public QpContentMetadata ToContentMetadata()

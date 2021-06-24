@@ -89,7 +89,7 @@ docker build -t qp.graphql -f QP.GraphQL.App/Dockerfile .
 ```
 Run the application in docker container on port 8889
 ```console
-docker run -it -p 8889:80 -e ASPNETCORE_ConnectionStrings__QPConnectionString="{db connection}" -e ASPNETCORE_ConnectionStrings__Type="{db type}" --rm --name=qp.graphql qp.graphql
+docker run -it -p 8889:80 -e ConnectionStrings__QPConnectionString="{db connection}" -e ConnectionStrings__Type="{db type}" --rm --name=qp.graphql qp.graphql
 ```
 where
 * `{db connection}` is the database connection
@@ -123,7 +123,7 @@ Also avaliable image tags can be seen here:
 
 #### 4.2.3 Running the application
 ```console
-docker run -it -p 8890:80 -e ASPNETCORE_ConnectionStrings__QPConnectionString="{db connection}" -e ASPNETCORE_ConnectionStrings__Type="{db type}" --rm --name=qp-graphql-service spbdocker03:5000/qp-graphql-service:{tag}
+docker run -it -p 8890:80 -e ConnectionStrings__QPConnectionString="{db connection}" -e ConnectionStrings__Type="{db type}" --rm --name=qp-graphql-service spbdocker03:5000/qp-graphql-service:{tag}
 ```
 where
 * `{tag}` is application version

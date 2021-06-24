@@ -36,7 +36,7 @@ namespace QP.GraphQL.DAL
                     s.use_absolute_upload_url as UseAbsoluteUploadUrl,
                     s.dns as Dns,
                     s.stage_dns as StageDns,
-                    s.replace_urls_in_db as ReplaceUrls,
+                    s.replace_urls as ReplaceUrls,
                     s.live_virtual_root as LiveVirtualRoot,
                     s.stage_virtual_root as StageVirtualRoot,
                     s.is_live as IsLive,
@@ -87,7 +87,7 @@ namespace QP.GraphQL.DAL
                 }
                 else
                 {
-                    site = metadataItem.ToSiteMetadata();
+                    site = metadataItem.ToSiteMetadata(true, false, false);
                     siteMap[metadataItem.SiteId] = site;
                 }
 

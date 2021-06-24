@@ -11,6 +11,8 @@
         public bool ReplaceUrls { get; set; }
         public string LiveVirtualRoot { get; set; }
         public string StageVirtualRoot { get; set; }
-        public bool IsLive { get; set; }    
+        public bool IsLive { get; set; }
+        public string UploadUrlPlaceholderValue { get; set; }
+        public string SiteUrlPlaceholderValue { get; set; }
     }
 }
