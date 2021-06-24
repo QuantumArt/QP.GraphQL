@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: graphql-deployment-||env||
+  namespace: "||namespace||"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: graphql-||env||
+  template:
+    metadata:
+      labels:
+        app: graphql-||env||
+        logging: enabled
+    spec:
+      terminationGracePeriodSeconds: 100
+      containers:
+      - image: "||registry||/qp-graphql-service:||version||"
+        name: graphql-||env||
+        envFrom:
+        - configMapRef:
+            name: graphql-config-||env||
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: tz-config
+        resources:
+          limits:
+            memory: "512Mi"
+          requests:
+            memory: "256Mi"
+      volumes:
+      - hostPath:
+          path: /usr/share/zoneinfo/Europe/Moscow
+          type: ""
+        name: tz-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: graphql-service-||env||
+  namespace: "||namespace||"
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: graphql-||env||
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: graphql-ingress-||env||
+  namespace: "||namespace||"
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "8k"
+spec:
+  rules:
+  - host: "||host||"
+    http:
+      paths:
+      - pathType: Prefix
+        path: /
+        backend:
+          service:
+            name: graphql-service-||env||
+            port:
+              number: 80
