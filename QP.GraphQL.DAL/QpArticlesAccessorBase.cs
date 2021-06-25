@@ -2,6 +2,7 @@
 using QP.GraphQL.Interfaces.Articles;
 using QP.GraphQL.Interfaces.Articles.Filtering;
 using QP.GraphQL.Interfaces.Articles.Paging;
+using QP.GraphQL.Interfaces.DAL;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -15,13 +16,15 @@ namespace QP.GraphQL.DAL
 {
     public abstract class QpArticlesAccessorBase : IQpArticlesAccessor
     {
-        public QpArticlesAccessorBase(DbConnection connection, ILogger logger)
+        public QpArticlesAccessorBase(DbConnection connection, IQueryService queryService, ILogger logger)
         {
             Connection = connection;
+            QueryService = queryService;
             Logger = logger;
         }
 
         public DbConnection Connection { get; }
+        protected IQueryService QueryService { get; private set; }
         protected ILogger Logger { get; private set; }
 
         public async Task<IDictionary<int, QpArticle>> GetArticlesByIdList(int contentId, IEnumerable<int> articleIds, QpArticleState state)
@@ -34,8 +37,9 @@ namespace QP.GraphQL.DAL
 
             var command = Connection.CreateCommand();
 
-            command.CommandText = $"select * from {GetContentTable(contentId, state)} where content_item_id in ({String.Join(",", articleIds)})";
+            command.CommandText = $"select * from {GetContentTable(contentId, state)} where content_item_id in (select id from {QueryService.GetIdTable("@articleds")})";
             command.CommandType = CommandType.Text;
+            command.Parameters.Add(QueryService.GetIdParam("@articleds", articleIds));
 
             using (var reader = await command.ExecuteReaderAsync())
             {
@@ -63,11 +67,12 @@ namespace QP.GraphQL.DAL
                     {BuildIdsFieldClause(relationId, state, isBackward)} as item_ids,
                     linked_id 
                  from {GetLinkTable(relationId, state, isBackward)}
-                 where id in ({String.Join(",", articleIds)})
+                 where id in (select id from {QueryService.GetIdTable("@articleds")})
                  group by linked_id) as m2m
                  join {GetContentTable(contentId, state)} t on t.content_item_id = m2m.linked_id
                    where {BuildWhereClause(where)} {(orderBy != null && orderBy.Any() ? "order by " + BuildOrderbyClause(orderBy, false) : "")}";
             command.CommandType = CommandType.Text;
+            command.Parameters.Add(QueryService.GetIdParam("@articleds", articleIds));
 
             using (var reader = await command.ExecuteReaderAsync())
             {
@@ -91,8 +96,9 @@ namespace QP.GraphQL.DAL
             command.CommandText = @$"
                 select *
                 from {GetContentTable(contentId, state)}
-                where {AddDelimiter(backwardFieldname)} in ({String.Join(",", articleIds)}) and {BuildWhereClause(where)} {(orderBy != null && orderBy.Any() ? "order by " + BuildOrderbyClause(orderBy, false) : "")}";
+                where {AddDelimiter(backwardFieldname)} in (select id from {QueryService.GetIdTable("@articleds")}) and {BuildWhereClause(where)} {(orderBy != null && orderBy.Any() ? "order by " + BuildOrderbyClause(orderBy, false) : "")}";
             command.CommandType = CommandType.Text;
+            command.Parameters.Add(QueryService.GetIdParam("@articleds", articleIds));
 
             using (var reader = await command.ExecuteReaderAsync())
             {

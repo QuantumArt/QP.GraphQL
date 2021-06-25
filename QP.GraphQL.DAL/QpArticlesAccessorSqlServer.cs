@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using QP.GraphQL.Interfaces.Articles;
+using QP.GraphQL.Interfaces.DAL;
 using System.Collections.Generic;
 using System.Data.Common;
 
@@ -7,7 +8,8 @@ namespace QP.GraphQL.DAL
 {
     public class QpArticlesAccessorSqlServer : QpArticlesAccessorBase
     {
-        public QpArticlesAccessorSqlServer(DbConnection connection, ILogger<QpArticlesAccessorSqlServer> logger) : base(connection, logger)
+        public QpArticlesAccessorSqlServer(DbConnection connection, IQueryService queryService, ILogger<QpArticlesAccessorSqlServer> logger)
+            : base(connection, queryService, logger)
         {
 
         }

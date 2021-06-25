@@ -53,11 +53,13 @@ namespace QP.GraphQL.App
 
             if (Configuration.GetDatabaseType() == DatabaseType.Postgres)
             {
-                services.AddTransient<IQpArticlesAccessor, QpArticlesAccessorPostgres>();                
+                services.AddTransient<IQueryService, QueryServicePostgres>();
+                services.AddTransient<IQpArticlesAccessor, QpArticlesAccessorPostgres>();
             }
             else if(Configuration.GetDatabaseType() == DatabaseType.SqlServer)
-            {                
-                services.AddTransient<IQpArticlesAccessor, QpArticlesAccessorSqlServer>();                              
+            {
+                services.AddTransient<IQueryService, QueryServiceSqlServer>();
+                services.AddTransient<IQpArticlesAccessor, QpArticlesAccessorSqlServer>();
             }
 
             // add schema
