@@ -1,6 +1,7 @@
 ﻿using Dapper;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using QP.GraphQL.Interfaces.DAL;
 using QP.GraphQL.Interfaces.Metadata;
 using System;
 using System.Collections.Generic;
@@ -12,21 +13,25 @@ namespace QP.GraphQL.DAL
 {
     public class QpMetadataAccessor : IQpMetadataAccessor
     {
-        public QpMetadataAccessor(DbConnection connection, IOptions<QpMetadataSettings> options, ILogger<QpMetadataAccessor> logger)
+        public QpMetadataAccessor(DbConnection connection, IOptions<QpMetadataSettings> options, IQueryService queryService, ILogger<QpMetadataAccessor> logger)
         {
             Connection = connection;
             Settings = options.Value;
+            QueryService = queryService;
             Logger = logger;
         }
         
         public DbConnection Connection { get; }
         protected QpMetadataSettings Settings { get; }
+        protected IQueryService QueryService { get; private set; }
         protected ILogger<QpMetadataAccessor> Logger { get; }
 
         public IDictionary<int, QpContentMetadata> GetContentsMetadata()
         {
             if (Connection.State != ConnectionState.Open)
                 Connection.Open();
+
+            var filterContents = Settings.ContentIds != null && Settings.ContentIds.Any();
 
             var query = $@"
                 select ca.attribute_id as Id,
@@ -71,10 +76,19 @@ namespace QP.GraphQL.DAL
                 left join content_to_content ctc on ctc.link_id = ca.link_id
                 left join content_attribute rca on rca.attribute_id = ca.related_attribute_id
                 left join content_attribute bca on bca.attribute_id = ca.back_related_attribute_id
-                where c.content_id in ({(Settings.ContentIds == null || !Settings.ContentIds.Any() ? "select content_id from content" : String.Join(",", Settings.ContentIds))})
+                where c.content_id in ({(filterContents ? "select id from " + QueryService.GetIdTable("@contentIds") : "select content_id from content")})
                 ";
 
-            var metadataItems = Connection.Query<QpMetadataItemInternal>(query).ToList();
+            var command = Connection.CreateCommand();
+            command.CommandText = query;
+            command.CommandType = CommandType.Text;
+            
+            if (filterContents)
+            {
+                command.Parameters.Add(QueryService.GetIdParam("@contentIds", Settings.ContentIds));
+            }
+
+            var metadataItems = command.ExecuteReader().Parse<QpMetadataItemInternal>();
             var siteMap = new Dictionary<int, QpSiteMetadata>();
             var contentMap = new Dictionary<int, QpContentMetadata>();
 

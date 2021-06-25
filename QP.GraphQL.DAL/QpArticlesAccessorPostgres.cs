@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using QP.GraphQL.Interfaces.Articles;
+using QP.GraphQL.Interfaces.DAL;
 using System.Collections.Generic;
 using System.Data.Common;
 
@@ -7,7 +8,8 @@ namespace QP.GraphQL.DAL
 {
     public class QpArticlesAccessorPostgres : QpArticlesAccessorBase
     {
-        public QpArticlesAccessorPostgres(DbConnection connection, ILogger<QpArticlesAccessorPostgres> logger) : base(connection, logger)
+        public QpArticlesAccessorPostgres(DbConnection connection, IQueryService queryService, ILogger<QpArticlesAccessorPostgres> logger)
+            : base(connection, queryService, logger)
         {
 
         }
