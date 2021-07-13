@@ -7,6 +7,7 @@ using GraphQL.Types.Relay.DataObjects;
 using GraphQL.Utilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using QP.GraphQL.DAL;
 using QP.GraphQL.Interfaces.Articles;
 using QP.GraphQL.Interfaces.Articles.Filtering;
 using QP.GraphQL.Interfaces.Articles.Paging;
@@ -15,9 +16,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using GraphQLTypes = GraphQL.Types;
-using QP.GraphQL.App;
-using QP.GraphQL.DAL;
-using Microsoft.Extensions.Options;
 
 namespace QP.GraphQL.App.Schema
 {
@@ -73,8 +71,8 @@ namespace QP.GraphQL.App.Schema
                     foreach (var attribute in contentMeta.Attributes.Where(ca => ca.Indexed))
                     {
                         var attributeAlias = attribute.Alias.ToLowerInvariant();
-                        orderEnumType.AddValue($"{attribute.SchemaAlias}Asc", $"Order by {attribute.Alias} ascending", $"{attribute.Alias}");
-                        orderEnumType.AddValue($"{attribute.SchemaAlias}Desc", $"Order by {attribute.Alias} descending", $"^{attribute.Alias}");
+                        orderEnumType.AddValue($"{attribute.SchemaAlias}Asc", $"Order by {attribute.SchemaAlias} ascending", $"{attribute.SchemaAlias}");
+                        orderEnumType.AddValue($"{attribute.SchemaAlias}Desc", $"Order by {attribute.SchemaAlias} descending", $"^{attribute.SchemaAlias}");
                     }
                     orderGraphTypes[contentId] = new ListGraphType(orderEnumType);
                 }
@@ -188,8 +186,8 @@ namespace QP.GraphQL.App.Schema
                 //всегда добавляем id
                 graphType.AddField(new FieldType
                 {
-                    Name = "Id", 
-                    Description = "Id", 
+                    Name = QpSystemFieldsDescripotor.Id, 
+                    Description = QpSystemFieldsDescripotor.Id, 
                     Type = typeof(IntGraphType),
                     Arguments = null,
                     Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.Id)

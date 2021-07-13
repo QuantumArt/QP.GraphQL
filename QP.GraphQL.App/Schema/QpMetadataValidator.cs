@@ -35,17 +35,19 @@ namespace QP.GraphQL.App.Schema
                 content.AliasSingular = SymbolsToReplace.Replace(content.AliasSingular, "_");
                 content.AliasPlural = SymbolsToReplace.Replace(content.AliasPlural, "_");
 
-                var singularPosition = contentAliasCounter.AddOrUpdate(content.AliasSingular, 0, (_, current) => current + 1);
-                var pluralPosition = contentPluralAliasCounter.AddOrUpdate(content.AliasPlural, 0, (_, current) => current + 1);
+                var singularPosition = contentAliasCounter.AddOrUpdate(content.AliasSingular, 1, (_, current) => current + 1);
+                var pluralPosition = contentPluralAliasCounter.AddOrUpdate(content.AliasPlural, 1, (_, current) => current + 1);
 
-                if (singularPosition > 0)
+                if (singularPosition > 1)
                 {
                     content.AliasSingular = $"{content.AliasSingular}_{singularPosition}";
+                    contentAliasCounter.AddOrUpdate(content.AliasSingular, 1, (_, current) => current + 1);
                 }
 
-                if (pluralPosition > 0)
+                if (pluralPosition > 1)
                 {
                     content.AliasPlural = $"{content.AliasPlural}_{pluralPosition}";
+                    contentPluralAliasCounter.AddOrUpdate(content.AliasPlural, 1, (_, current) => current + 1);
                 }
 
                 try
@@ -68,11 +70,12 @@ namespace QP.GraphQL.App.Schema
                                 a.SchemaAlias = SymbolsToReplace.Replace(a.SchemaAlias, "_");
                             }
 
-                            var position = fieldAliasCounter.AddOrUpdate(a.SchemaAlias, 0, (_, current) => current + 1);
+                            var position = fieldAliasCounter.AddOrUpdate(a.SchemaAlias, 1, (_, current) => current + 1);
 
-                            if (position > 0)
+                            if (position > 1)
                             {
                                 a.SchemaAlias = $"{a.SchemaAlias}_{position}";
+                                fieldAliasCounter.AddOrUpdate(a.SchemaAlias, 1, (_, current) => current + 1);
                             }
 
                             NameValidator.ValidateName(a.SchemaAlias, NamedElement.Field);
