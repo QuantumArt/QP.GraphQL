@@ -70,6 +70,11 @@ namespace QP.GraphQL.App.Schema
                                 a.SchemaAlias = SymbolsToReplace.Replace(a.SchemaAlias, "_");
                             }
 
+                            if (a.SchemaAlias.StartsWith("_"))
+                            {
+                                a.SchemaAlias = $"field{a.SchemaAlias}";
+                            }
+
                             var position = fieldAliasCounter.AddOrUpdate(a.SchemaAlias, 1, (_, current) => current + 1);
 
                             if (position > 1)
