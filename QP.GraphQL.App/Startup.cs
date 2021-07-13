@@ -68,7 +68,8 @@ namespace QP.GraphQL.App
             services.AddTransient<QpContentsSchemaDynamic>();   
             services.AddSingleton<ISchemaFactory, SchemaFactory>();
             services.AddTransient<ISchema, SchemaDecorator>();
-            
+            services.AddTransient<IQpMetadataValidator, QpMetadataValidator>();
+
             if (Configuration.SchemaAutoReload())
             {
                 services.AddHostedService<SchemaBackgroundService>();
