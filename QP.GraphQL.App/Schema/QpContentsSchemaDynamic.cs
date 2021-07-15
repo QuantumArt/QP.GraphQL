@@ -186,8 +186,8 @@ namespace QP.GraphQL.App.Schema
                 //всегда добавляем id
                 graphType.AddField(new FieldType
                 {
-                    Name = QpSystemFieldsDescripotor.Id, 
-                    Description = QpSystemFieldsDescripotor.Id, 
+                    Name = QpSystemFieldsDescriptor.Id, 
+                    Description = QpSystemFieldsDescriptor.Id, 
                     Type = typeof(IntGraphType),
                     Arguments = null,
                     Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.Id)

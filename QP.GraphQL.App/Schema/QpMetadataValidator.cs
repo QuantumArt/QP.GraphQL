@@ -59,9 +59,7 @@ namespace QP.GraphQL.App.Schema
                     {
                         try
                         {
-                            a.SchemaAlias = a.Alias;
-
-                            if (QpSystemFieldsDescripotor.Id.Equals(a.Alias, StringComparison.InvariantCultureIgnoreCase))
+                            if (QpSystemFieldsDescriptor.Id.Equals(a.Alias, StringComparison.InvariantCultureIgnoreCase))
                             {
                                 a.SchemaAlias = $"{a.SchemaAlias}Field";
                             }
