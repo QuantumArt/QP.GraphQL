@@ -81,6 +81,7 @@ namespace QP.GraphQL.DAL
                 ContentId = this.ContentId,
                 FriendlyName = String.IsNullOrWhiteSpace(this.FriendlyName) ? $"Поле {Alias}" : this.FriendlyName,
                 Alias = this.Alias,
+                SchemaAlias = this.Alias,
                 TypeName = this.TypeName,
                 Indexed = this.Indexed == 1,
                 RelatedO2mContentId = this.RelatedO2mContentId,

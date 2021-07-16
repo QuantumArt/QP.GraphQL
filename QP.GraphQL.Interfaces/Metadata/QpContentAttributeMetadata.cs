@@ -6,6 +6,7 @@
         public int ContentId { get; set; }
         public string FriendlyName { get; set; }
         public string Alias { get; set; }
+        public string SchemaAlias { get; set; }
         public string TypeName { get; set; }
         public bool Indexed { get; set; }
 
