@@ -7,6 +7,7 @@ using GraphQL.Types.Relay.DataObjects;
 using GraphQL.Utilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using QP.GraphQL.DAL;
 using QP.GraphQL.Interfaces.Articles;
 using QP.GraphQL.Interfaces.Articles.Filtering;
 using QP.GraphQL.Interfaces.Articles.Paging;
@@ -15,9 +16,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using GraphQLTypes = GraphQL.Types;
-using QP.GraphQL.App;
-using QP.GraphQL.DAL;
-using Microsoft.Extensions.Options;
 
 namespace QP.GraphQL.App.Schema
 {
@@ -27,7 +25,8 @@ namespace QP.GraphQL.App.Schema
         private readonly ILogger<QpContentsSchemaDynamic> _logger;
         private readonly GraphQLSettings _settings;
 
-        public QpContentsSchemaDynamic(IServiceProvider serviceProvider, 
+        public QpContentsSchemaDynamic(IServiceProvider serviceProvider,
+            IQpMetadataValidator validator,
             IDataLoaderContextAccessor dataLoaderAccessor,
             IQpMetadataAccessor metadataAccessor,
             ILogger<QpContentsSchemaDynamic> logger
@@ -46,25 +45,7 @@ namespace QP.GraphQL.App.Schema
             var filterDefinitionsByContentTypes = new Dictionary<int, Dictionary<string, QpFieldFilterDefinition>>();
 
             //валидация полей
-            foreach(var item in metadata)
-            {
-                var attributes = new List<QpContentAttributeMetadata>();
-
-                foreach(var a in item.Value.Attributes)
-                {
-                    try
-                    {
-                        NameValidator.ValidateName(a.Alias, NamedElement.Field);
-                        attributes.Add(a);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning("field {field} not pass: {validationerror}", new { a.Id, a.Alias, a.ContentId}, ex.Message);
-                    }
-                }
-
-                item.Value.Attributes = attributes;
-            }
+            metadata = validator.ValidateFields(metadata);
 
             //создаём типы графов по каждому типу контента
             foreach (var contentId in metadata.Keys)
@@ -72,7 +53,7 @@ namespace QP.GraphQL.App.Schema
                 var contentMeta = metadata[contentId];
                 var graphType = new ObjectGraphType<QpArticle>()
                 {
-                    Name = ClearifyGraphName(contentMeta.AliasSingular),
+                    Name = contentMeta.AliasSingular,
                     Description = contentMeta.FriendlyName
                 };
                 graphTypes[contentId] = graphType;
@@ -90,8 +71,8 @@ namespace QP.GraphQL.App.Schema
                     foreach (var attribute in contentMeta.Attributes.Where(ca => ca.Indexed))
                     {
                         var attributeAlias = attribute.Alias.ToLowerInvariant();
-                        orderEnumType.AddValue($"{attribute.Alias}Asc", $"Order by {attribute.Alias} ascending", $"{attribute.Alias}");
-                        orderEnumType.AddValue($"{attribute.Alias}Desc", $"Order by {attribute.Alias} descending", $"^{attribute.Alias}");
+                        orderEnumType.AddValue($"{attribute.SchemaAlias}Asc", $"Order by {attribute.SchemaAlias} ascending", $"{attribute.SchemaAlias}");
+                        orderEnumType.AddValue($"{attribute.SchemaAlias}Desc", $"Order by {attribute.SchemaAlias} descending", $"^{attribute.SchemaAlias}");
                     }
                     orderGraphTypes[contentId] = new ListGraphType(orderEnumType);
                 }
@@ -205,8 +186,8 @@ namespace QP.GraphQL.App.Schema
                 //всегда добавляем id
                 graphType.AddField(new FieldType
                 {
-                    Name = "Id", 
-                    Description = "Id", 
+                    Name = QpSystemFieldsDescriptor.Id, 
+                    Description = QpSystemFieldsDescriptor.Id, 
                     Type = typeof(IntGraphType),
                     Arguments = null,
                     Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.Id)
@@ -223,7 +204,7 @@ namespace QP.GraphQL.App.Schema
                         case "VisualEdit":
                             f = new FieldType
                             {
-                                Name = ClearifyGraphName(attribute.Alias),
+                                Name = attribute.SchemaAlias,
                                 Description = attribute.FriendlyName,
                                 Type = typeof(StringGraphType),
                                 Arguments = null,
@@ -235,7 +216,7 @@ namespace QP.GraphQL.App.Schema
                             //TODO: можно быть более точным в выборе GraphType, не всегда DecimalGraphType, еще может быть IntGraphType/LongGraphType
                             f = new FieldType
                             {
-                                Name = ClearifyGraphName(attribute.Alias),
+                                Name = attribute.SchemaAlias,
                                 Description = attribute.FriendlyName,
                                 Type = typeof(DecimalGraphType),
                                 Arguments = null,
@@ -245,7 +226,7 @@ namespace QP.GraphQL.App.Schema
                         case "Boolean":
                             f = new FieldType
                             {
-                                Name = ClearifyGraphName(attribute.Alias),
+                                Name = attribute.SchemaAlias,
                                 Description = attribute.FriendlyName,
                                 Type = typeof(BooleanGraphType),
                                 Arguments = null,
@@ -255,7 +236,7 @@ namespace QP.GraphQL.App.Schema
                         case "Date":
                             f = new FieldType
                             {
-                                Name = ClearifyGraphName(attribute.Alias),
+                                Name = attribute.SchemaAlias,
                                 Description = attribute.FriendlyName,
                                 Type = typeof(DateGraphType),
                                 Arguments = null,
@@ -266,7 +247,7 @@ namespace QP.GraphQL.App.Schema
                         case "DateTime":
                             f = new FieldType
                             {
-                                Name = ClearifyGraphName(attribute.Alias),
+                                Name = attribute.SchemaAlias,
                                 Description = attribute.FriendlyName,
                                 Type = typeof(DateTimeGraphType),
                                 Arguments = null,
@@ -278,7 +259,7 @@ namespace QP.GraphQL.App.Schema
                         case "Dynamic Image":
                             f = new FieldType
                             {
-                                Name = ClearifyGraphName(attribute.Alias),
+                                Name = attribute.SchemaAlias,
                                 Description = attribute.FriendlyName,
                                 Type = typeof(UriGraphType),
                                 Arguments = null,
@@ -321,7 +302,7 @@ namespace QP.GraphQL.App.Schema
                                 //если контента, на который идёт ссылка, нет в графе - делаем просто int-овое поле вместо ссылки
                                 f = new FieldType
                                 {
-                                    Name = ClearifyGraphName(attribute.Alias),
+                                    Name = attribute.SchemaAlias,
                                     Description = attribute.FriendlyName,
                                     Type = typeof(IntGraphType),
                                     Arguments = null,
@@ -332,7 +313,7 @@ namespace QP.GraphQL.App.Schema
                             {
                                 f = new FieldType
                                 {
-                                    Name = ClearifyGraphName(attribute.Alias),
+                                    Name = attribute.SchemaAlias,
                                     Description = attribute.FriendlyName,
                                     ResolvedType = graphListTypes[relationContentId],
                                     Arguments = GetRelationArguments(filterGraphTypes, orderGraphTypes, relationContentId),
@@ -366,7 +347,7 @@ namespace QP.GraphQL.App.Schema
                             {
                                 f = new FieldType
                                 {
-                                    Name = ClearifyGraphName(attribute.Alias),
+                                    Name = attribute.SchemaAlias,
                                     Description = attribute.FriendlyName,
                                     ResolvedType = graphTypes[relationContentId],
                                     Arguments = null,
@@ -401,7 +382,7 @@ namespace QP.GraphQL.App.Schema
                                 //если контента, на который идёт ссылка, нет в графе - делаем просто int-овое поле вместо ссылки
                                 f = new FieldType
                                 {
-                                    Name = ClearifyGraphName(attribute.Alias),
+                                    Name = attribute.SchemaAlias,
                                     Description = attribute.FriendlyName,
                                     Type = typeof(IntGraphType),
                                     Arguments = null,
@@ -412,7 +393,7 @@ namespace QP.GraphQL.App.Schema
                             {
                                 f = new FieldType
                                 {
-                                    Name = ClearifyGraphName(attribute.Alias),
+                                    Name = attribute.SchemaAlias,
                                     Description = attribute.FriendlyName,
                                     ResolvedType = graphListTypes[relationContentId],
                                     Arguments = GetRelationArguments(filterGraphTypes, orderGraphTypes, relationContentId),
@@ -457,7 +438,7 @@ namespace QP.GraphQL.App.Schema
                 var contentMeta = metadata[contentId];
                 rootQuery.AddField(new FieldType
                 {
-                    Name = ClearifyGraphName(contentMeta.AliasSingular),
+                    Name = contentMeta.AliasSingular,
                     Description = contentMeta.FriendlyName + " по id", 
                     ResolvedType = graphTypes[contentId],
                     Arguments = new QueryArguments(
@@ -475,7 +456,7 @@ namespace QP.GraphQL.App.Schema
                 });
                 var connectionField = new FieldType
                 {
-                    Name = ClearifyGraphName(contentMeta.AliasPlural),
+                    Name = contentMeta.AliasPlural,
                     Description = contentMeta.FriendlyName + " - список",
                     ResolvedType = connectionGraphTypes[contentId],
                     Arguments = new QueryArguments(
@@ -543,7 +524,7 @@ namespace QP.GraphQL.App.Schema
 
         private static void AddFiltersForNumericField(InputObjectGraphType<object> filterType, Dictionary<string, QpFieldFilterDefinition> filterDefinitions, QpContentAttributeMetadata attribute, Type graphType)
         {
-            var clearedAlias = ClearifyGraphName(attribute.Alias);
+            var clearedAlias = attribute.SchemaAlias;
 
             AddSimpleFiltersForField(filterType, filterDefinitions, attribute, graphType);
 
@@ -579,7 +560,7 @@ namespace QP.GraphQL.App.Schema
 
         private static void AddFiltersForStringField(InputObjectGraphType<object> filterType, Dictionary<string, QpFieldFilterDefinition> filterDefinitions, QpContentAttributeMetadata attribute)
         {
-            var clearedAlias = ClearifyGraphName(attribute.Alias);
+            var clearedAlias = attribute.SchemaAlias;
             filterType.AddField(new FieldType
             {
                 Name = $"{clearedAlias}Like",
@@ -598,7 +579,7 @@ namespace QP.GraphQL.App.Schema
 
         private static void AddSimpleFiltersForField(InputObjectGraphType<object> filterType, Dictionary<string, QpFieldFilterDefinition> filterDefinitions, QpContentAttributeMetadata attribute, Type graphType)
         {
-            var clearedAlias = ClearifyGraphName(attribute.Alias);
+            var clearedAlias = attribute.SchemaAlias;
             filterType.AddField(new FieldType
             {
                 Name = $"{clearedAlias}Eq",
@@ -613,12 +594,6 @@ namespace QP.GraphQL.App.Schema
                 Type = graphType
             });
             filterDefinitions[$"{clearedAlias}Not"] = new QpFieldFilterDefinition { QpFieldName = attribute.Alias, QpFieldType = attribute.TypeName, Operator = FilterOperator.NotEqual };
-        }
-
-        private static string ClearifyGraphName(string alias)
-        {
-            //TODO: по идее надо сюда добавить отсечение всяких запрещенных в GraphQL, но разрешенных в QP, символов
-            return alias;
         }
 
         private static IList<string> GetOrderArguments(IResolveFieldContext context)
