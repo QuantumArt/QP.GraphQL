@@ -78,6 +78,28 @@ namespace QP.GraphQL.App
 
             services.Configure<GraphQLSettings>(Configuration);
 
+
+            var origins = Configuration.GetSection("CorsOrigins").Get<string[]>();
+
+            services.AddCors(options =>
+            {
+                options.AddDefaultPolicy(
+                    builder =>
+                    {
+                        if (origins == null)
+                        {
+                            builder.AllowAnyOrigin();
+                        }
+                        else
+                        {
+                            builder.WithOrigins(origins);
+                        }
+
+                        builder.AllowAnyMethod()
+                        .AllowAnyHeader();
+                    });
+            });
+
             services.AddControllers();
 
             services.AddControllers().AddJsonOptions(opts =>
@@ -103,6 +125,7 @@ namespace QP.GraphQL.App
             app.UseGraphQLGraphiQL();
 
             app.UseRouting();
+            app.UseCors();
 
             app.UseEndpoints(endpoints =>
             {
