@@ -78,13 +78,24 @@ namespace QP.GraphQL.App
 
             services.Configure<GraphQLSettings>(Configuration);
 
+
+            var origins = Configuration.GetSection("CorsOrigins").Get<string[]>();
+
             services.AddCors(options =>
             {
                 options.AddDefaultPolicy(
                     builder =>
                     {
-                        builder.AllowAnyOrigin()
-                        .AllowAnyMethod()
+                        if (origins == null)
+                        {
+                            builder.AllowAnyOrigin();
+                        }
+                        else
+                        {
+                            builder.WithOrigins(origins);
+                        }
+
+                        builder.AllowAnyMethod()
                         .AllowAnyHeader();
                     });
             });
