@@ -365,12 +365,14 @@ namespace QP.GraphQL.DAL
 
         private static string BuildWhereClause(IEnumerable<QpFieldFilterClause> where)
         {
-            if (where == null || !where.Any())
+            var actualWhere = where?.Where(w => w.Value != null);
+
+            if (actualWhere == null || !actualWhere.Any())
                 return "1=1";
 
             var numericFormat = new NumberFormatInfo { NumberDecimalSeparator = "." };
             StringBuilder whereBuilder = new StringBuilder();
-            foreach (var clause in where)
+            foreach (var clause in actualWhere)
             {
                 if (whereBuilder.Length > 0)
                     whereBuilder.Append(" and ");
