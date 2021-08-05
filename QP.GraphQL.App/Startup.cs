@@ -100,12 +100,12 @@ namespace QP.GraphQL.App
                     });
             });
 
-            services.AddControllers();
-
             services.AddControllers().AddJsonOptions(opts =>
             {
                 opts.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
             });
+
+            services.Configure<QpPluginSettings>(Configuration.GetSection("QpPluginSettings"));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
