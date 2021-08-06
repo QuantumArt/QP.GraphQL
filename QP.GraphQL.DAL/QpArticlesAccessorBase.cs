@@ -121,6 +121,17 @@ namespace QP.GraphQL.DAL
 
             if (paginationArgs.Skip.HasValue && paginationArgs.First.HasValue)
             {
+                var parameters = new List<string>();
+
+                if (paginationArgs.Skip.Value < 0)
+                    parameters.Add("skip");
+
+                if (paginationArgs.First.Value <= 0)
+                    parameters.Add("first");
+
+                if (parameters.Any())
+                    throw new ArgumentException($"Pagination parameter(s) {string.Join(", ", parameters)} must be positive/nonnegative");
+
                 query = BuildTakeSkipClause(contentId, whereClause, orderBy, paginationArgs.First.Value, paginationArgs.Skip.Value, state);
             }
             else if (paginationArgs.First.HasValue || paginationArgs.Last.HasValue)
