@@ -120,7 +120,7 @@ namespace QP.GraphQL.DAL
             string whereClause = BuildWhereClause(where);
 
             if (paginationArgs.Skip.HasValue && paginationArgs.First.HasValue)
-            {
+            {                
                 var parameters = new List<string>();
 
                 if (paginationArgs.Skip.Value < 0)
@@ -132,22 +132,18 @@ namespace QP.GraphQL.DAL
                 if (parameters.Any())
                     throw new ArgumentException($"Pagination parameter(s) {string.Join(", ", parameters)} must be positive/nonnegative");
 
+                orderBy = PrepareOrderBy(orderBy);
                 query = BuildTakeSkipClause(contentId, whereClause, orderBy, paginationArgs.First.Value, paginationArgs.Skip.Value, state);
             }
             else if (paginationArgs.First.HasValue || paginationArgs.Last.HasValue)
-            {
-                //спецификация по cursor-based пагинации, она же Relay: https://relay.dev/graphql/connections.htm
-                //в случае cursor-based пагинации, нужно делать финальную сортировку по id для консистентности результата
-                if (orderBy == null)
-                    orderBy = new List<string>();
-
-                orderBy.Insert(orderBy.Count, "content_item_id");
-
+            {                
                 bool takeRowsFromBeginning = paginationArgs.First.HasValue;
                 string cursor = takeRowsFromBeginning ? paginationArgs.After : paginationArgs.Before;
                 int count = takeRowsFromBeginning ? paginationArgs.First.Value : paginationArgs.Last.Value;
                 if (count <= 0)
                     throw new ArgumentException($"Pagination parameter {(takeRowsFromBeginning ? "first" : "last")} must be positive");
+                
+                orderBy = PrepareOrderBy(orderBy);
 
                 var pagingWhereClause = cursor != null ? BuildPagingWhereClause(contentId, orderBy, cursor, !takeRowsFromBeginning, state) : "(1=1)";
 
@@ -252,6 +248,22 @@ namespace QP.GraphQL.DAL
             }
 
             return query;
+        }
+
+        /// <summary>
+        /// Cпецификация по cursor-based пагинации, она же Relay: https://relay.dev/graphql/connections.htm
+        /// в случае cursor-based пагинации, нужно делать финальную сортировку по id для консистентности результата
+        /// </summary>
+        /// <param name="orderBy"></param>
+        /// <returns></returns>
+        private IList<string> PrepareOrderBy(IList<string> orderBy)
+        {
+            if (orderBy == null)
+                orderBy = new List<string>();
+
+            orderBy.Insert(orderBy.Count, "content_item_id");
+
+            return orderBy;
         }
 
         private async Task<bool> HasOtherPage(int contentId, string whereClause, IList<string> orderBy, QpArticleState state, string cursor, RelayPaginationArgs paginationArgs, bool checkNext)
