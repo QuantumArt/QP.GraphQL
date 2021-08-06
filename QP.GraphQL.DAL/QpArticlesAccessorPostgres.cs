@@ -29,12 +29,7 @@ namespace QP.GraphQL.DAL
 
         protected override string BuildTakeSkipClause(int contentId, string whereClause, IList<string> orderBy, int take, int skip, QpArticleState state)
         {
-            var query = $"select * from {GetContentTable(contentId, state)} where {whereClause}";
-
-            if (orderBy != null)
-            {
-                query = $"{query} order by {BuildOrderbyClause(orderBy, false)}";
-            }
+            var query = base.BuildTakeSkipClause(contentId, whereClause, orderBy, take, skip, state);
 
             query = $"{query} limit {take} offset {skip}";
 

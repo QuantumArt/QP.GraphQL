@@ -205,11 +205,6 @@ namespace QP.GraphQL.DAL
                     result.Articles.RemoveAt(result.Articles.Count - 1);
                 }
 
-                if (paginationArgs.After == null)
-                {
-
-                }
-
                 result.HasPreviousPage = await HasOtherPage(contentId, whereClause, orderBy, state, result.Articles.FirstOrDefault()?.Id.ToString(), paginationArgs, false);
             }
             else if (paginationArgs.Last.HasValue)
@@ -250,8 +245,6 @@ namespace QP.GraphQL.DAL
 
         private async Task<bool> HasOtherPage(int contentId, string whereClause, IList<string> orderBy, QpArticleState state, string cursor, RelayPaginationArgs paginationArgs, bool checkNext)
         {
-            //await Task.Delay(1000);
-
             if ((checkNext && paginationArgs.Last.HasValue && paginationArgs.Before == null) || (!checkNext && paginationArgs.First.HasValue && paginationArgs.After == null))
             {
                 return false;
