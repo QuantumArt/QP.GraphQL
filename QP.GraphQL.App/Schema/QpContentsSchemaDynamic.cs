@@ -460,6 +460,7 @@ namespace QP.GraphQL.App.Schema
                     Description = contentMeta.FriendlyName + " - список",
                     ResolvedType = connectionGraphTypes[contentId],
                     Arguments = new QueryArguments(
+                        new QueryArgument<IntGraphType> { Name = "skip", Description = "Skips edges before selection" },
                         new QueryArgument<StringGraphType> { Name = "after", Description = "Only return edges after the specified cursor." },
                         new QueryArgument<IntGraphType> { Name = "first", Description = "Specifies the maximum number of edges to return, starting after the cursor specified by 'after', or the first number of edges if 'after' is not specified." },
                         new QueryArgument<StringGraphType> { Name = "before", Description = "Only return edges prior to the specified cursor." },
@@ -605,6 +606,7 @@ namespace QP.GraphQL.App.Schema
         {
             return new RelayPaginationArgs
             {
+                Skip = context.GetArgument<int?>("skip"),
                 After = context.GetArgument<string>("after"),
                 First = context.GetArgument<int?>("first"),
                 Before = context.GetArgument<string>("before"),
