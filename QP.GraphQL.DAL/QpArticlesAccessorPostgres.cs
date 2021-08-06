@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using QP.GraphQL.Interfaces.Articles;
 using QP.GraphQL.Interfaces.DAL;
 using System.Collections.Generic;
@@ -8,8 +9,8 @@ namespace QP.GraphQL.DAL
 {
     public class QpArticlesAccessorPostgres : QpArticlesAccessorBase
     {
-        public QpArticlesAccessorPostgres(DbConnection connection, IQueryService queryService, ILogger<QpArticlesAccessorPostgres> logger)
-            : base(connection, queryService, logger)
+        public QpArticlesAccessorPostgres(DbConnection connection, IQueryService queryService, IOptions<QpArticlesAccessorSettings> options, ILogger<QpArticlesAccessorPostgres> logger)
+            : base(connection, queryService, options, logger)
         {
 
         }
@@ -24,6 +25,20 @@ namespace QP.GraphQL.DAL
         protected override string BuildLimitClause(int contentId, string whereClause, string pagingWhereClause, IList<string> orderBy, int count, bool reverse, QpArticleState state)
         {
             return $"select * from {GetContentTable(contentId, state)} where {whereClause} and {pagingWhereClause} order by {BuildOrderbyClause(orderBy, reverse)} limit {count}";
+        }
+
+        protected override string BuildTakeSkipClause(int contentId, string whereClause, IList<string> orderBy, int take, int skip, QpArticleState state)
+        {
+            var query = $"select * from {GetContentTable(contentId, state)} where {whereClause}";
+
+            if (orderBy != null)
+            {
+                query = $"{query} order by {BuildOrderbyClause(orderBy, false)}";
+            }
+
+            query = $"{query} limit {take} offset {skip}";
+
+            return query;
         }
     }
 }

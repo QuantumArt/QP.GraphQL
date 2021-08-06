@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using QP.GraphQL.Interfaces.Articles;
 using QP.GraphQL.Interfaces.Articles.Filtering;
 using QP.GraphQL.Interfaces.Articles.Paging;
@@ -16,15 +17,17 @@ namespace QP.GraphQL.DAL
 {
     public abstract class QpArticlesAccessorBase : IQpArticlesAccessor
     {
-        public QpArticlesAccessorBase(DbConnection connection, IQueryService queryService, ILogger logger)
+        public QpArticlesAccessorBase(DbConnection connection, IQueryService queryService, IOptions<QpArticlesAccessorSettings> options, ILogger logger)
         {
             Connection = connection;
             QueryService = queryService;
+            Settings = options.Value;
             Logger = logger;
         }
 
         public DbConnection Connection { get; }
         protected IQueryService QueryService { get; private set; }
+        protected QpArticlesAccessorSettings Settings { get; private set; }
         protected ILogger Logger { get; private set; }
 
         public async Task<IDictionary<int, QpArticle>> GetArticlesByIdList(int contentId, IEnumerable<int> articleIds, QpArticleState state)
@@ -116,7 +119,11 @@ namespace QP.GraphQL.DAL
             string query;
             string whereClause = BuildWhereClause(where);
 
-            if (paginationArgs.First.HasValue || paginationArgs.Last.HasValue)
+            if (paginationArgs.Skip.HasValue && paginationArgs.First.HasValue)
+            {
+                query = BuildTakeSkipClause(contentId, whereClause, orderBy, paginationArgs.First.Value, paginationArgs.Skip.Value, state);
+            }
+            else if (paginationArgs.First.HasValue || paginationArgs.Last.HasValue)
             {
                 //спецификация по cursor-based пагинации, она же Relay: https://relay.dev/graphql/connections.htm
                 //в случае cursor-based пагинации, нужно делать финальную сортировку по id для консистентности результата
@@ -173,48 +180,101 @@ namespace QP.GraphQL.DAL
 
             command.CommandText = query;
             command.CommandType = CommandType.Text;
+            IList<QpArticle> articles =null;
 
             using (var reader = await command.ExecuteReaderAsync())
             {
-                var result = new RelayPaginationResult
-                {
-                    TotalCount = totalCount,
-                    Articles = ParseQpArticleReader(reader, contentId)
-                };
+                articles = ParseQpArticleReader(reader, contentId);
+            }
 
-                if (paginationArgs.First.HasValue)
+            var result = new RelayPaginationResult
+            {
+                TotalCount = totalCount,
+                Articles = articles
+            };
+
+            // TODO: calculate HasNextPage, HasPreviousPage for Skip mode
+
+            if (paginationArgs.First.HasValue && !paginationArgs.Skip.HasValue)
+            {
+                result.HasNextPage = result.Articles.Count > paginationArgs.First.Value;//за счёт того, что в базе запрашивается First + 1 запись
+                    
+                if (result.HasNextPage)
                 {
-                    result.HasNextPage = result.Articles.Count > paginationArgs.First.Value;//за счёт того, что в базе запрашивается First + 1 запись
-                    result.HasPreviousPage = false;
-                    if (result.HasNextPage)
-                    {
-                        //надо обрезать из результирующей выборки последнюю запись - она лишняя, т.к. запросили в базе на 1 больше, чем надо
-                        result.Articles.RemoveAt(result.Articles.Count - 1);
-                    }
+                    //надо обрезать из результирующей выборки последнюю запись - она лишняя, т.к. запросили в базе на 1 больше, чем надо
+                    result.Articles.RemoveAt(result.Articles.Count - 1);
                 }
-                else if (paginationArgs.Last.HasValue)
+
+                if (paginationArgs.After == null)
                 {
-                    result.HasNextPage = false;
-                    result.HasPreviousPage = result.Articles.Count > paginationArgs.Last.Value;//за счёт того, что в базе запрашивается Last + 1 запись
-                    if (result.HasPreviousPage)
-                    {
-                        //надо обрезать из результирующей выборки первую запись - она лишняя, т.к. запросили в базе на 1 больше, чем надо
-                        result.Articles.RemoveAt(0);
-                    }
+
                 }
-                else
+
+                result.HasPreviousPage = await HasOtherPage(contentId, whereClause, orderBy, state, result.Articles.FirstOrDefault()?.Id.ToString(), paginationArgs, false);
+            }
+            else if (paginationArgs.Last.HasValue)
+            {                    
+                result.HasPreviousPage = result.Articles.Count > paginationArgs.Last.Value;//за счёт того, что в базе запрашивается Last + 1 запись
+                if (result.HasPreviousPage)
                 {
-                    result.HasNextPage = false;
-                    result.HasPreviousPage = false;
+                    //надо обрезать из результирующей выборки первую запись - она лишняя, т.к. запросили в базе на 1 больше, чем надо
+                    result.Articles.RemoveAt(0);
                 }
+
+                result.HasNextPage = await HasOtherPage(contentId, whereClause, orderBy, state, result.Articles.LastOrDefault()?.Id.ToString(), paginationArgs, true);
+            }
+            else
+            {
+                result.HasNextPage = false;
+                result.HasPreviousPage = false;
+            }
 
                 return result;
-            }
         }
 
         protected abstract string BuildIdsFieldClause(int linkId, QpArticleState state, bool isBackward);
-        protected abstract string BuildLimitClause(int contentId, string whereClause, string pagingWhereClause, IList<string> orderBy, int count, bool reverse, QpArticleState state);
+        protected abstract string BuildLimitClause(int contentId, string whereClause, string pagingWhereClause, IList<string> orderBy, int count, bool reverse, QpArticleState state);        
         protected abstract string AddDelimiter(string identifier);
+
+        protected virtual string BuildTakeSkipClause(int contentId, string whereClause, IList<string> orderBy, int take, int skip, QpArticleState state)
+        {
+            var query = $"select * from {GetContentTable(contentId, state)} where {whereClause}";
+
+            if (orderBy != null)
+            {
+                query = $"{query} order by {BuildOrderbyClause(orderBy, false)}";
+            }
+
+            return query;
+        }
+
+        private async Task<bool> HasOtherPage(int contentId, string whereClause, IList<string> orderBy, QpArticleState state, string cursor, RelayPaginationArgs paginationArgs, bool checkNext)
+        {
+            //await Task.Delay(1000);
+
+            if ((checkNext && paginationArgs.Last.HasValue && paginationArgs.Before == null) || (!checkNext && paginationArgs.First.HasValue && paginationArgs.After == null))
+            {
+                return false;
+            }
+            else if (Settings.CalculatePagingData && cursor != null)
+            {
+                var commandForNextPageCount = Connection.CreateCommand();
+                var pagingWhereClause = BuildPagingWhereClause(contentId, orderBy, cursor, !checkNext, state);
+                var query = BuildLimitClause(contentId, whereClause, pagingWhereClause, orderBy, 1, !checkNext, state);
+                query = $"select count(*) from ({query}) tbl";                
+
+                commandForNextPageCount.CommandText = query;
+                commandForNextPageCount.CommandType = CommandType.Text;
+
+                var totalCountObj = await commandForNextPageCount.ExecuteScalarAsync();
+                var totalCount = Convert.ToInt32(totalCountObj);
+                return totalCount > 0;
+            }
+            else
+            {
+                return false;
+            }
+        }
 
         private List<QpArticle> ParseQpArticleReader(DbDataReader reader, int contentId)
         {

@@ -47,6 +47,7 @@ namespace QP.GraphQL.App
 
             // qp dal
             services.Configure<ConnectionSettings>(Configuration.GetConnectionSection());
+            services.Configure<QpArticlesAccessorSettings>(Configuration.GetSection("QpArticlesAccessor"));
             services.AddSingleton<IConnectionFactory, ConnectionFactory>();
             services.AddTransient<DbConnection>(s => s.GetRequiredService<IConnectionFactory>().GetConnection());
             services.AddTransient<IQpMetadataAccessor, QpMetadataAccessor>();
