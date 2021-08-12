@@ -7,6 +7,7 @@ using GraphQL.Types.Relay.DataObjects;
 using GraphQL.Utilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using QP.GraphQL.App.Types;
 using QP.GraphQL.DAL;
 using QP.GraphQL.Interfaces.Articles;
 using QP.GraphQL.Interfaces.Articles.Filtering;
@@ -104,7 +105,7 @@ namespace QP.GraphQL.App.Schema
                             AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(DateGraphType));
                             break;
                         case "Time":
-                            AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(TimeSpanSecondsGraphType));
+                            AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(TimeGraphType));
                             break;
                         case "DateTime":
                             AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(DateTimeGraphType));
@@ -250,7 +251,7 @@ namespace QP.GraphQL.App.Schema
                             {
                                 Name = attribute.SchemaAlias,
                                 Description = attribute.FriendlyName,
-                                Type = typeof(TimeSpanSecondsGraphType),
+                                Type = typeof(TimeGraphType),
                                 Arguments = null,
                                 Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.AllFields[attributeAlias])
                             };
