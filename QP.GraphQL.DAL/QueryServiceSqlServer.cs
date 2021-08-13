@@ -6,7 +6,7 @@ using System.Data.Common;
 
 namespace QP.GraphQL.DAL
 {
-    public class QueryServiceSqlServer : IQueryService
+    public class QueryServiceSqlServer : QueryServiceBase, IQueryService
     {
         private const string IdsTypeName = "Ids";
 
@@ -38,6 +38,14 @@ namespace QP.GraphQL.DAL
         public string GetIdTable(string name, string alias = "i")
         {
             return $"{name} {alias}";
+        }
+
+        public override DbParameter GetParameter(string name, SqlDbType type, object value)
+        {
+            return new SqlParameter(GetParamName(name), type)
+            {
+                Value = value
+            };
         }
     }
 }

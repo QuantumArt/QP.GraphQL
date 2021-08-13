@@ -7,6 +7,7 @@ using GraphQL.Types.Relay.DataObjects;
 using GraphQL.Utilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using QP.GraphQL.App.Types;
 using QP.GraphQL.DAL;
 using QP.GraphQL.Interfaces.Articles;
 using QP.GraphQL.Interfaces.Articles.Filtering;
@@ -20,7 +21,7 @@ using GraphQLTypes = GraphQL.Types;
 namespace QP.GraphQL.App.Schema
 {
     public class QpContentsSchemaDynamic : GraphQLTypes.Schema
-    {        
+    {
         public Guid Id { get; private set; } = Guid.NewGuid();
         private readonly ILogger<QpContentsSchemaDynamic> _logger;
         private readonly GraphQLSettings _settings;
@@ -34,7 +35,7 @@ namespace QP.GraphQL.App.Schema
             : base(serviceProvider)
         {
             _logger = logger;
-            _logger.LogInformation("Start create schema {schemaId}", Id);            
+            _logger.LogInformation("Start create schema {schemaId}", Id);
 
             var metadata = metadataAccessor.GetContentsMetadata();
             var graphTypes = new Dictionary<int, IObjectGraphType>();
@@ -64,7 +65,7 @@ namespace QP.GraphQL.App.Schema
                 if (contentMeta.Attributes.Any(ca => ca.Indexed))
                 {
                     var orderEnumType = new EnumerationGraphType 
-                    { 
+                    {
                         Name = $"PossibleOrderFor{graphType.Name}", 
                         Description = $"Possible order by literals for content type {graphType.Name}"
                     };
@@ -104,6 +105,8 @@ namespace QP.GraphQL.App.Schema
                             AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(DateGraphType));
                             break;
                         case "Time":
+                            AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(TimeGraphType));
+                            break;
                         case "DateTime":
                             AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(DateTimeGraphType));
                             break;
@@ -244,6 +247,15 @@ namespace QP.GraphQL.App.Schema
                             };
                             break;
                         case "Time":
+                            f = new FieldType
+                            {
+                                Name = attribute.SchemaAlias,
+                                Description = attribute.FriendlyName,
+                                Type = typeof(TimeGraphType),
+                                Arguments = null,
+                                Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.AllFields[attributeAlias])
+                            };
+                            break;
                         case "DateTime":
                             f = new FieldType
                             {
@@ -336,7 +348,6 @@ namespace QP.GraphQL.App.Schema
                                                 orderArgs,
                                                 filterArgs,
                                                 state));
-                                        
 
 
                                         return loader.LoadAsync(context.Source.Id);

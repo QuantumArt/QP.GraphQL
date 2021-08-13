@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using QP.GraphQL.App.Schema;
+using QP.GraphQL.App.Types;
 using QP.GraphQL.DAL;
 using QP.GraphQL.Interfaces.Articles;
 using QP.GraphQL.Interfaces.DAL;
@@ -64,6 +65,7 @@ namespace QP.GraphQL.App
             }
 
             // add schema
+            services.AddSingleton<TimeGraphType>();
             services.Configure<QpMetadataSettings>(Configuration);
             services.Configure<SchemaSettings>(Configuration);
             services.AddTransient<QpContentsSchemaDynamic>();   
