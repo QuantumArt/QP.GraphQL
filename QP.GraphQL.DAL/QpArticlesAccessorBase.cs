@@ -302,9 +302,8 @@ namespace QP.GraphQL.DAL
                 for (var i = 0; i < reader.FieldCount; i++)
                 {
                     var column = reader.GetName(i).ToLowerInvariant();
-                    if (string.Equals(column, "content_item_id", StringComparison.OrdinalIgnoreCase))
-                        article.Id = reader.GetInt32(i);
-                    else
+
+                    if (!ParseSystemFields(reader, article, i))
                     {
                         var val = reader.GetValue(i);
                         article.AllFields.Add(column, val is DBNull ? null : val);
@@ -327,11 +326,7 @@ namespace QP.GraphQL.DAL
                 for (var i = 1; i < reader.FieldCount; i++)
                 {
                     var column = reader.GetName(i).ToLowerInvariant();
-                    if (string.Equals(column, "content_item_id", StringComparison.OrdinalIgnoreCase))
-                    {
-                        article.Id = reader.GetInt32(i);
-                    }
-                    else
+                    if (!ParseSystemFields(reader, article, i))
                     {
                         var val = reader.GetValue(i);
                         article.AllFields.Add(column, val is DBNull ? null : val);
@@ -358,11 +353,7 @@ namespace QP.GraphQL.DAL
                 {
                     var column = reader.GetName(i).ToLowerInvariant();
 
-                    if (string.Equals(column, "content_item_id", StringComparison.OrdinalIgnoreCase))
-                    {
-                        article.Id = reader.GetInt32(i);
-                    }
-                    else
+                    if (!ParseSystemFields(reader, article, i))
                     {
                         if (string.Equals(column, backwardFieldname, StringComparison.OrdinalIgnoreCase))
                         {
@@ -398,6 +389,27 @@ namespace QP.GraphQL.DAL
             }
 
             return orderByClauseBuilder.ToString();
+        }
+
+        private static bool ParseSystemFields(DbDataReader reader, QpArticle article, int position)
+        {
+            var column = reader.GetName(position).ToLowerInvariant();
+            if (string.Equals(column, QpSystemFieldsDescriptor.Id.DBName, StringComparison.OrdinalIgnoreCase))
+                article.Id = reader.GetInt32(position);
+            else if (string.Equals(column, QpSystemFieldsDescriptor.StatusTypeId.DBName, StringComparison.OrdinalIgnoreCase))
+                article.StatusTypeId = reader.GetInt32(position);
+            else if (string.Equals(column, QpSystemFieldsDescriptor.Created.DBName, StringComparison.OrdinalIgnoreCase))
+                article.Created = reader.GetDateTime(position);
+            else if (string.Equals(column, QpSystemFieldsDescriptor.Modified.DBName, StringComparison.OrdinalIgnoreCase))
+                article.Modified = reader.GetDateTime(position);
+            else if (string.Equals(column, QpSystemFieldsDescriptor.LastModifiedBy.DBName, StringComparison.OrdinalIgnoreCase))
+                article.LastModifiedBy = reader.GetInt32(position);
+            else
+            {
+                return false;
+            }
+
+            return true;
         }
 
         private QueryContext BuildPagingWhereContext(int contentId, IList<string> orderBy, string cursor, bool reverse, QpArticleState state)
