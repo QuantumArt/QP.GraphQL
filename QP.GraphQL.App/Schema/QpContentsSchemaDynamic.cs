@@ -200,9 +200,6 @@ namespace QP.GraphQL.App.Schema
                 var contentMeta = metadata[contentId];
                 var graphType = graphTypes[contentId];
 
-                //реализуем интерфейс
-                //ImplementInterface(graphType, articleInterface);
-
                 foreach (var attribute in contentMeta.Attributes)
                 {
                     FieldType f = null;
