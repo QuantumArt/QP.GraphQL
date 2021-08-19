@@ -29,7 +29,7 @@ namespace QP.GraphQL.DAL
         protected QpArticlesAccessorSettings Settings { get; private set; }
         protected ILogger Logger { get; private set; }
 
-        public async Task<IDictionary<int, QpArticle>> GetArticlesByIdList(int contentId, IEnumerable<int> articleIds, QpArticleState state)
+        public async Task<IDictionary<int, QpArticle>> GetArticlesByIdList(int contentId, IDictionary<int, string> extensionMap, IEnumerable<int> articleIds, QpArticleState state)
         {
             if (!articleIds.Any())
                 return new Dictionary<int, QpArticle>();
@@ -50,6 +50,7 @@ namespace QP.GraphQL.DAL
         }
 
         public async Task<ILookup<int, QpArticle>> GetRelatedM2mArticlesByIdList(int contentId,
+            IDictionary<int, string> extensionMap,
             IEnumerable<int> articleIds,
             int relationId,
             bool isBackward,
@@ -86,6 +87,7 @@ namespace QP.GraphQL.DAL
 
 
         public async Task<ILookup<int, QpArticle>> GetRelatedM2oArticlesByIdList(int contentId,
+            IDictionary<int, string> extensionMap,
             IEnumerable<int> articleIds,
             string backwardFieldname,
             IList<string> orderBy,
@@ -113,6 +115,7 @@ namespace QP.GraphQL.DAL
         }
 
         public async Task<RelayPaginationResult> GetPagedArticles(int contentId,
+            IDictionary<int, string> extensionMap,
             IList<string> orderBy,
             IEnumerable<QpFieldFilterClause> where,
             RelayPaginationArgs paginationArgs,

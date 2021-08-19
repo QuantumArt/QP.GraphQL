@@ -11,5 +11,7 @@ namespace QP.GraphQL.Interfaces.Metadata
         public string AliasPlural { get; set; }
         public string Description { get; set; }
         public IList<QpContentAttributeMetadata> Attributes { get; set; }
+        public bool HasExtensions { get; set; }
+        public IList<QpContentMetadata> Extensions { get; set; }
     }
 }

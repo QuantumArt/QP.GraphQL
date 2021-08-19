@@ -345,7 +345,8 @@ namespace QP.GraphQL.App.Schema
 
                                         var loader = dataLoaderAccessor.Context.GetOrAddCollectionBatchLoader<int, QpArticle>($"M2M_{attribute.Id}_filter({filterArgsKey})_order({orderArgsKey})",
                                             (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>().GetRelatedM2mArticlesByIdList(
-                                                relationContentId, 
+                                                relationContentId,
+                                                null,
                                                 ids,
                                                 Convert.ToInt32(context.Source.AllFields[attributeAlias]),
                                                 isBackward,
@@ -371,7 +372,7 @@ namespace QP.GraphQL.App.Schema
                                         var state = GetQpArticleState(context.UserContext);
                                         var loader = dataLoaderAccessor.Context.GetOrAddBatchLoader<int, QpArticle>($"Batch_{relationContentId}",
                                             (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>()
-                                                        .GetArticlesByIdList(relationContentId, ids, state));
+                                                        .GetArticlesByIdList(relationContentId, null, ids, state));
 
                                         return loader.LoadAsync(Convert.ToInt32(context.Source.AllFields[attributeAlias]));
                                     })
@@ -424,6 +425,7 @@ namespace QP.GraphQL.App.Schema
                                         var loader = dataLoaderAccessor.Context.GetOrAddCollectionBatchLoader<int, QpArticle>($"M2O_{attribute.Id}_filter({filterArgsKey})_order({orderArgsKey})",
                                             (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>().GetRelatedM2oArticlesByIdList(
                                                 relationContentId,
+                                                null,
                                                 ids,
                                                 backwardFieldName,
                                                 orderArgs,
@@ -464,7 +466,7 @@ namespace QP.GraphQL.App.Schema
                         var state = GetQpArticleState(context.UserContext);
                         var loader = dataLoaderAccessor.Context.GetOrAddBatchLoader<int, QpArticle>($"Batch_{contentId}",
                                             (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>()
-                                                        .GetArticlesByIdList(contentId, ids, state));
+                                                        .GetArticlesByIdList(contentId, null, ids, state));
 
                         return loader.LoadAsync(Convert.ToInt32(context.GetArgument<int>("id")));
                     })
@@ -486,7 +488,8 @@ namespace QP.GraphQL.App.Schema
                     {
                         var state = GetQpArticleState(context.UserContext);
                         var needTotalCount = context.SubFields.Any(f => f.Key == "totalCount");
-                        var relayResult = await context.RequestServices.GetRequiredService<IQpArticlesAccessor>().GetPagedArticles(contentId, 
+                        var relayResult = await context.RequestServices.GetRequiredService<IQpArticlesAccessor>().GetPagedArticles(contentId,
+                                null,
                                 GetOrderArguments(context), 
                                 GetFilterArguments(context, filterDefinitionsByContentTypes[contentId]),
                                 GetPaginationArguments(context),
