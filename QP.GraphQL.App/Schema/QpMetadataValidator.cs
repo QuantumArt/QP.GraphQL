@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using QP.GraphQL.DAL;
 using QP.GraphQL.Interfaces.Metadata;
 using System;
+using System.Linq;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
@@ -59,7 +60,7 @@ namespace QP.GraphQL.App.Schema
                     {
                         try
                         {
-                            if (QpSystemFieldsDescriptor.Id.Equals(a.Alias, StringComparison.InvariantCultureIgnoreCase))
+                            if (QpSystemFieldsDescriptor.SystemFields.Any(f => f.Equals(a.Alias, StringComparison.InvariantCultureIgnoreCase)))
                             {
                                 a.SchemaAlias = $"{a.SchemaAlias}Field";
                             }
