@@ -19,7 +19,8 @@ namespace QP.GraphQL.DAL
         public int? M2mRelationId { get; set; }
         public int? RelatedM2oContentId { get; set; }
         public string RelatedM2oBackwardField { get; set; }
-
+        public int? ClassifierAttributeId { get; set; }
+        public bool IsClassifier { get; set; }
         public string ContentFriendlyName { get; set; }
         public string ContentAliasSingular { get; set; }
         public string ContentAliasPlural { get; set; }
@@ -69,7 +70,8 @@ namespace QP.GraphQL.DAL
                 AliasSingular = String.IsNullOrWhiteSpace(ContentAliasSingular) ? $"Content{ContentId}" : ContentAliasSingular,
                 AliasPlural = String.IsNullOrWhiteSpace(ContentAliasPlural) ? $"Contents{ContentId}" : ContentAliasPlural,
                 Description = ContentDescription,
-                Attributes = new List<QpContentAttributeMetadata>()
+                Attributes = new List<QpContentAttributeMetadata>(),
+                Extensions = new List<QpContentMetadata>()
             };
         }
 
@@ -89,10 +91,12 @@ namespace QP.GraphQL.DAL
                 M2mIsBackward = this.M2mIsBackward,
                 M2mRelationId = this.M2mRelationId,
                 RelatedM2oContentId = this.RelatedM2oContentId,
-                RelatedM2oBackwardField = this.RelatedM2oBackwardField,
+                RelatedM2oBackwardField = this.RelatedM2oBackwardField,                
+                ClassifierAttributeId = this.ClassifierAttributeId,
+                IsClassifier = this.IsClassifier,
                 SubFolder = this.SubFolder,
                 UseSiteLibrary = this.UseSiteLibrary,
-                SourceAttributeId = this.SourceAttributeId
+                SourceAttributeId = this.SourceAttributeId,
             };
         }
     }

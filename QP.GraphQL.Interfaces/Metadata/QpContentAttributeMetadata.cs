@@ -16,6 +16,8 @@
         public bool? M2mIsBackward { get; set; }
         public int? RelatedM2oContentId { get; set; }
         public string RelatedM2oBackwardField { get; set; }
+        public int? ClassifierAttributeId { get; set; }
+        public bool IsClassifier { get; set; }
         public string SubFolder { get; set; }
         public bool UseSiteLibrary { get; set; }
         public int? SourceAttributeId { get; set; }

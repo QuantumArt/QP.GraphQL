@@ -62,6 +62,8 @@ namespace QP.GraphQL.DAL
 	                rca.content_id as RelatedO2mContentId,
                     bca.content_id as RelatedM2oContentId,
                     bca.attribute_name as RelatedM2oBackwardField,
+					ca.CLASSIFIER_ATTRIBUTE_ID  as ClassifierAttributeId,
+					ca.IS_CLASSIFIER as IsClassifier,
 	                c.content_name as ContentFriendlyName,
 	                c.net_content_name as ContentAliasSingular,
 	                c.net_plural_content_name as ContentAliasPlural,
@@ -121,6 +123,33 @@ namespace QP.GraphQL.DAL
                 attribute.Content = content;
                 content.Attributes.Add(attribute);
             }
+
+            foreach(var id in contentMap.Keys)
+            {
+                var content = contentMap[id];
+
+                content.HasExtensions = content.Attributes.Any(a => a.IsClassifier);
+
+                if (!content.HasExtensions)
+                {
+                    var baseRef = content.Attributes.FirstOrDefault(a => a.ClassifierAttributeId.HasValue);
+
+                    if (baseRef != null)
+                    {
+                        var baseContentId = baseRef.RelatedO2mContentId.Value;
+                        var baseContent = contentMap[baseContentId];
+                        var baseClassifier = baseContent.Attributes.First(a => a.IsClassifier);
+
+                        if (baseRef.ClassifierAttributeId.Value == baseClassifier.Id)
+                        {
+                            baseContent.Extensions.Add(content);
+                        }
+
+                        contentMap.Remove(id);
+                    }
+                }
+            }
+
             return contentMap;
         }
     }
