@@ -125,7 +125,7 @@ namespace QP.GraphQL.DAL
             string query;
             var whereContext = BuildWhereContext(where);
             var pagingWhereContext = QueryContext.EmptyWhere;
-            var contentTable = GetContentTable(contentId, state);
+            var contentTable = GetContentTable(contentId, state, extensionMap);
 
             if (paginationArgs.Skip.HasValue && paginationArgs.First.HasValue)
             {
@@ -309,7 +309,10 @@ namespace QP.GraphQL.DAL
                     if (!ParseSystemFields(reader, article, i))
                     {
                         var val = reader.GetValue(i);
-                        article.AllFields.Add(column, val is DBNull ? null : val);
+                        if (!article.AllFields.ContainsKey(column))
+                        {
+                            article.AllFields.Add(column, val is DBNull ? null : val);
+                        }
                     }
                 }
 
@@ -396,7 +399,17 @@ namespace QP.GraphQL.DAL
 
         private static bool ParseSystemFields(DbDataReader reader, QpArticle article, int position)
         {
+
             var column = reader.GetName(position).ToLowerInvariant();
+
+            if (QpSystemFieldsDescriptor.SystemDBFields.Any(f => string.Equals(column, f, StringComparison.OrdinalIgnoreCase)) && position > 6)
+            {
+                return true;
+            }
+
+            if (string.Equals(column, "type", StringComparison.OrdinalIgnoreCase))
+                article.ExtensionContentId = reader.GetInt32(position);
+
             if (string.Equals(column, QpSystemFieldsDescriptor.Id.DBName, StringComparison.OrdinalIgnoreCase))
                 article.Id = reader.GetInt32(position);
             else if (string.Equals(column, QpSystemFieldsDescriptor.StatusTypeId.DBName, StringComparison.OrdinalIgnoreCase))
@@ -489,6 +502,25 @@ namespace QP.GraphQL.DAL
                 QpArticleState.Stage => $"content_{contentId}_stage_new",
                 _ => null
             };
+        }
+
+        protected static string GetContentTable(int contentId, QpArticleState state, IDictionary<int, string> extensionMap = null)
+        {
+            var table = GetContentTable(contentId, state);
+            var result = new StringBuilder(table);
+
+            if (extensionMap != null && extensionMap.Any())
+            {
+                result.Append(" base");
+
+                foreach (var item in extensionMap)
+                {
+                    var extensionTable = GetContentTable(item.Key, state);
+                    result.Append($" left join {extensionTable} ex_{item.Key} on base.content_item_id = ex_{item.Key}.{item.Value}");
+                }
+            }
+
+            return result.ToString();
         }
     }
 }

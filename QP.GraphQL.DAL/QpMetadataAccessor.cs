@@ -128,8 +128,6 @@ namespace QP.GraphQL.DAL
             {
                 var content = contentMap[id];
 
-                content.HasExtensions = content.Attributes.Any(a => a.IsClassifier);
-
                 if (!content.HasExtensions)
                 {
                     var baseRef = content.Attributes.FirstOrDefault(a => a.ClassifierAttributeId.HasValue);

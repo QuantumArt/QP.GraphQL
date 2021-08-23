@@ -10,6 +10,14 @@
             LastModifiedBy.Name
         };
 
+        public static string[] SystemDBFields = new string[]{
+            Id.DBName,
+            StatusTypeId.DBName,
+            Created.DBName,
+            Modified.DBName,
+            LastModifiedBy.DBName
+        };
+
         public static class Id
         {
             public const string Name = "Id";
