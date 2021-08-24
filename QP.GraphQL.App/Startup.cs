@@ -39,12 +39,11 @@ namespace QP.GraphQL.App
                 var settings = services.GetRequiredService<IOptions<GraphQLSettings>>();
                 return new ErrorInfoProvider(new ErrorInfoProviderOptions { ExposeExceptionStackTrace = settings.Value.ExposeExceptions });
             });
+            services.Configure<GraphQLSettings>(Configuration);
 
             // setup graphql dataloaders
             services.AddSingleton<IDataLoaderContextAccessor, DataLoaderContextAccessor>();
             services.AddSingleton<DataLoaderDocumentListener>();
-
-            services.AddSingleton<SqlClientListener>();
 
             // qp dal
             services.Configure<ConnectionSettings>(Configuration.GetConnectionSection());
@@ -78,12 +77,8 @@ namespace QP.GraphQL.App
                 services.AddHostedService<SchemaBackgroundService>();
             }
 
-
-            services.Configure<GraphQLSettings>(Configuration);
-
-
+            // setup cors
             var origins = Configuration.GetSection("CorsOrigins").Get<string[]>();
-
             services.AddCors(options =>
             {
                 options.AddDefaultPolicy(
@@ -103,11 +98,16 @@ namespace QP.GraphQL.App
                     });
             });
 
+            // mvc controllers
             services.AddControllers().AddJsonOptions(opts =>
             {
                 opts.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
             });
 
+            // setup sql logging
+            services.AddSingleton<SqlClientListener>();
+
+            // setup for service as QP8 plugin
             services.Configure<QpPluginSettings>(Configuration.GetSection("QpPluginSettings"));
         }
 

@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using QP.GraphQL.App.QpContract;
+using QP8.Plugins.Contract;
+using System.Collections.Generic;
 
 namespace QP.GraphQL.App.Controllers
 {
@@ -22,50 +23,50 @@ namespace QP.GraphQL.App.Controllers
             { 
                 Code = "graphql",
                 Description = "GraphQL Headless API",
-                Version = pluginSettings.Version,
+                Version = pluginSettings.ContractVersion,
                 InstanceKey = pluginSettings.InstanceKey,
                 AllowMultipleInstances = true,
-                Fields = new QpPluginField[5]
+                Fields = new List<QpPluginField>
                 { 
                     new QpPluginField
                     {
                         Name = "ApiKey",
                         Description = "Ключ доступа для GraphQL API",
-                        ValueType = QpPluginFieldValueType.String,
-                        RelationType = QpPluginFieldRelationType.Site,
+                        ValueType = QpPluginValueType.String,
+                        RelationType = QpPluginRelationType.Site,
                         SortOrder = 0,
-                        Required = true
+                        //Required = true
                     },
                     new QpPluginField
                     {
                         Name = "IsExposed",
                         Description = "Доступность контента в GraphQL API",
-                        ValueType = QpPluginFieldValueType.Bool,
-                        RelationType = QpPluginFieldRelationType.Content,
+                        ValueType = QpPluginValueType.Bool,
+                        RelationType = QpPluginRelationType.Content,
                         SortOrder = 0
                     },
                     new QpPluginField
                     {
                         Name = "AliasSingular",
                         Description = "Алиас в ед. числе в схеме GraphQL",
-                        ValueType = QpPluginFieldValueType.String,
-                        RelationType = QpPluginFieldRelationType.Content,
+                        ValueType = QpPluginValueType.String,
+                        RelationType = QpPluginRelationType.Content,
                         SortOrder = 5
                     },
                     new QpPluginField
                     {
                         Name = "AliasPlural",
                         Description = "Алиас в множ. числе в схеме GraphQL",
-                        ValueType = QpPluginFieldValueType.String,
-                        RelationType = QpPluginFieldRelationType.Content,
+                        ValueType = QpPluginValueType.String,
+                        RelationType = QpPluginRelationType.Content,
                         SortOrder = 10
                     },
                     new QpPluginField
                     {
                         Name = "IsHidden",
                         Description = "Недоступность поля в GraphQL API",
-                        ValueType = QpPluginFieldValueType.Bool,
-                        RelationType = QpPluginFieldRelationType.ContentAttribute,
+                        ValueType = QpPluginValueType.Bool,
+                        RelationType = QpPluginRelationType.ContentAttribute,
                         SortOrder = 0
                     }
                 }
