@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using QP.GraphQL.App.Schema;
+using QP.GraphQL.App.Types;
 using QP.GraphQL.DAL;
 using QP.GraphQL.Interfaces.Articles;
 using QP.GraphQL.Interfaces.DAL;
@@ -47,6 +48,7 @@ namespace QP.GraphQL.App
 
             // qp dal
             services.Configure<ConnectionSettings>(Configuration.GetConnectionSection());
+            services.Configure<QpArticlesAccessorSettings>(Configuration.GetSection("QpArticlesAccessor"));
             services.AddSingleton<IConnectionFactory, ConnectionFactory>();
             services.AddTransient<DbConnection>(s => s.GetRequiredService<IConnectionFactory>().GetConnection());
             services.AddTransient<IQpMetadataAccessor, QpMetadataAccessor>();
@@ -63,6 +65,7 @@ namespace QP.GraphQL.App
             }
 
             // add schema
+            services.AddSingleton<TimeGraphType>();
             services.Configure<QpMetadataSettings>(Configuration);
             services.Configure<SchemaSettings>(Configuration);
             services.AddTransient<QpContentsSchemaDynamic>();   

@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace QP.GraphQL.Interfaces.Articles
 {
@@ -11,6 +12,11 @@ namespace QP.GraphQL.Interfaces.Articles
         }
         public int ContentId { get; private set; }
         public int Id { get; set; }
+        public int StatusTypeId { get; set; }
+        public DateTime Created { get; set; }
+        public DateTime Modified { get; set; }
+        public int LastModifiedBy { get; set; }
+
         public Dictionary<string, object> AllFields { get; set; }
     }
 }

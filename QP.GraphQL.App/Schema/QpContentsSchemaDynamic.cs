@@ -7,6 +7,7 @@ using GraphQL.Types.Relay.DataObjects;
 using GraphQL.Utilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using QP.GraphQL.App.Types;
 using QP.GraphQL.DAL;
 using QP.GraphQL.Interfaces.Articles;
 using QP.GraphQL.Interfaces.Articles.Filtering;
@@ -20,7 +21,7 @@ using GraphQLTypes = GraphQL.Types;
 namespace QP.GraphQL.App.Schema
 {
     public class QpContentsSchemaDynamic : GraphQLTypes.Schema
-    {        
+    {
         public Guid Id { get; private set; } = Guid.NewGuid();
         private readonly ILogger<QpContentsSchemaDynamic> _logger;
         private readonly GraphQLSettings _settings;
@@ -34,7 +35,7 @@ namespace QP.GraphQL.App.Schema
             : base(serviceProvider)
         {
             _logger = logger;
-            _logger.LogInformation("Start create schema {schemaId}", Id);            
+            _logger.LogInformation("Start create schema {schemaId}", Id);
 
             var metadata = metadataAccessor.GetContentsMetadata();
             var graphTypes = new Dictionary<int, IObjectGraphType>();
@@ -47,6 +48,9 @@ namespace QP.GraphQL.App.Schema
             //валидация полей
             metadata = validator.ValidateFields(metadata);
 
+            //базовый интерфейс статьи с системными полями
+            var articleInterface = new ArticleInterface();           
+
             //создаём типы графов по каждому типу контента
             foreach (var contentId in metadata.Keys)
             {
@@ -56,6 +60,9 @@ namespace QP.GraphQL.App.Schema
                     Name = contentMeta.AliasSingular,
                     Description = contentMeta.FriendlyName
                 };
+
+                ImplementInterface(graphType, articleInterface);
+
                 graphTypes[contentId] = graphType;
                 graphListTypes[contentId] = new ListGraphType(graphType);
 
@@ -64,16 +71,21 @@ namespace QP.GraphQL.App.Schema
                 if (contentMeta.Attributes.Any(ca => ca.Indexed))
                 {
                     var orderEnumType = new EnumerationGraphType 
-                    { 
+                    {
                         Name = $"PossibleOrderFor{graphType.Name}", 
                         Description = $"Possible order by literals for content type {graphType.Name}"
                     };
                     foreach (var attribute in contentMeta.Attributes.Where(ca => ca.Indexed))
                     {
-                        var attributeAlias = attribute.Alias.ToLowerInvariant();
-                        orderEnumType.AddValue($"{attribute.SchemaAlias}Asc", $"Order by {attribute.SchemaAlias} ascending", $"{attribute.SchemaAlias}");
-                        orderEnumType.AddValue($"{attribute.SchemaAlias}Desc", $"Order by {attribute.SchemaAlias} descending", $"^{attribute.SchemaAlias}");
+                        AddSortValue(orderEnumType, attribute.SchemaAlias, attribute.SchemaAlias);
                     }
+
+                    AddSortValue(orderEnumType, QpSystemFieldsDescriptor.Id.Name, QpSystemFieldsDescriptor.Id.DBName);
+                    AddSortValue(orderEnumType, QpSystemFieldsDescriptor.StatusTypeId.Name, QpSystemFieldsDescriptor.StatusTypeId.DBName);
+                    AddSortValue(orderEnumType, QpSystemFieldsDescriptor.Created.Name, QpSystemFieldsDescriptor.Created.DBName);
+                    AddSortValue(orderEnumType, QpSystemFieldsDescriptor.Modified.Name, QpSystemFieldsDescriptor.Modified.DBName);
+                    AddSortValue(orderEnumType, QpSystemFieldsDescriptor.LastModifiedBy.Name, QpSystemFieldsDescriptor.LastModifiedBy.DBName);
+
                     orderGraphTypes[contentId] = new ListGraphType(orderEnumType);
                 }
 
@@ -85,6 +97,9 @@ namespace QP.GraphQL.App.Schema
                     Description = $"Filter object for content type {graphType.Name}"
                 };
                 var filterDefinitions = new Dictionary<string, QpFieldFilterDefinition>();
+
+                AddFiltersForSystemFields(filterType, filterDefinitions);
+
                 foreach (var attribute in contentMeta.Attributes.Where(ca => !ca.Alias.Contains(' ')))
                 {
                     switch (attribute.TypeName)
@@ -104,6 +119,8 @@ namespace QP.GraphQL.App.Schema
                             AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(DateGraphType));
                             break;
                         case "Time":
+                            AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(TimeGraphType));
+                            break;
                         case "DateTime":
                             AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(DateTimeGraphType));
                             break;
@@ -183,16 +200,6 @@ namespace QP.GraphQL.App.Schema
                 var contentMeta = metadata[contentId];
                 var graphType = graphTypes[contentId];
 
-                //всегда добавляем id
-                graphType.AddField(new FieldType
-                {
-                    Name = QpSystemFieldsDescriptor.Id, 
-                    Description = QpSystemFieldsDescriptor.Id, 
-                    Type = typeof(IntGraphType),
-                    Arguments = null,
-                    Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.Id)
-                });
-
                 foreach (var attribute in contentMeta.Attributes)
                 {
                     FieldType f = null;
@@ -244,6 +251,15 @@ namespace QP.GraphQL.App.Schema
                             };
                             break;
                         case "Time":
+                            f = new FieldType
+                            {
+                                Name = attribute.SchemaAlias,
+                                Description = attribute.FriendlyName,
+                                Type = typeof(TimeGraphType),
+                                Arguments = null,
+                                Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.AllFields[attributeAlias])
+                            };
+                            break;
                         case "DateTime":
                             f = new FieldType
                             {
@@ -336,7 +352,6 @@ namespace QP.GraphQL.App.Schema
                                                 orderArgs,
                                                 filterArgs,
                                                 state));
-                                        
 
 
                                         return loader.LoadAsync(context.Source.Id);
@@ -460,6 +475,7 @@ namespace QP.GraphQL.App.Schema
                     Description = contentMeta.FriendlyName + " - список",
                     ResolvedType = connectionGraphTypes[contentId],
                     Arguments = new QueryArguments(
+                        new QueryArgument<IntGraphType> { Name = "skip", Description = "Skips edges before selection" },
                         new QueryArgument<StringGraphType> { Name = "after", Description = "Only return edges after the specified cursor." },
                         new QueryArgument<IntGraphType> { Name = "first", Description = "Specifies the maximum number of edges to return, starting after the cursor specified by 'after', or the first number of edges if 'after' is not specified." },
                         new QueryArgument<StringGraphType> { Name = "before", Description = "Only return edges prior to the specified cursor." },
@@ -484,10 +500,23 @@ namespace QP.GraphQL.App.Schema
                 rootQuery.AddField(connectionField);
             }
 
+            RegisterType(articleInterface);
             Query = rootQuery;
             Description = "Autogenerated QP contents schema";
 
             _logger.LogInformation("End create schema {schemaId}", Id);
+        }
+
+        private static void ImplementInterface(IObjectGraphType objectType, IInterfaceGraphType interfaceType)
+        {
+            interfaceType.Fields.ToList().ForEach(f => objectType.AddField(f));
+            objectType.AddResolvedInterface(interfaceType);
+        }
+
+        private static void AddSortValue(EnumerationGraphType type, string name, string dbName)
+        {
+            type.AddValue($"{name}Asc", $"Order by {name} ascending", $"{dbName}");
+            type.AddValue($"{name}Desc", $"Order by {name} descending", $"^{dbName}");
         }
 
         private static QueryArguments GetRelationArguments(Dictionary<int, InputObjectGraphType<object>> filterGraphTypes, Dictionary<int, ListGraphType> orderGraphTypes, int relationContentId)
@@ -520,6 +549,54 @@ namespace QP.GraphQL.App.Schema
                     .ThenBy(fa => fa.FilterDefinition.Operator)
                     .Select(fa => $"{fa.FilterDefinition.QpFieldName}_{fa.FilterDefinition.Operator}_{fa.GetHashCode()}"));
             }
+        }
+
+        private static void AddFiltersForSystemFields(InputObjectGraphType<object> filterType, Dictionary<string, QpFieldFilterDefinition> filterDefinitions)
+        {
+            var metadata = new QpContentAttributeMetadata
+            {
+                Alias = QpSystemFieldsDescriptor.Id.DBName,
+                SchemaAlias = QpSystemFieldsDescriptor.Id.Name,
+                TypeName = "Numeric"
+            };
+
+            AddFiltersForNumericField(filterType, filterDefinitions, metadata, typeof(DecimalGraphType));
+
+            metadata = new QpContentAttributeMetadata
+            {
+                Alias = QpSystemFieldsDescriptor.StatusTypeId.DBName,
+                SchemaAlias = QpSystemFieldsDescriptor.StatusTypeId.Name,
+                TypeName = "Numeric"
+            };
+
+            AddFiltersForNumericField(filterType, filterDefinitions, metadata, typeof(DecimalGraphType));
+
+            metadata = new QpContentAttributeMetadata
+            {
+                Alias = QpSystemFieldsDescriptor.Created.DBName,
+                SchemaAlias = QpSystemFieldsDescriptor.Created.Name,
+                TypeName = "DateTime"
+            };
+
+            AddFiltersForNumericField(filterType, filterDefinitions, metadata, typeof(DateTimeGraphType));
+
+            metadata = new QpContentAttributeMetadata
+            {
+                Alias = QpSystemFieldsDescriptor.Modified.DBName,
+                SchemaAlias = QpSystemFieldsDescriptor.Modified.Name,
+                TypeName = "DateTime"
+            };
+
+            AddFiltersForNumericField(filterType, filterDefinitions, metadata, typeof(DateTimeGraphType));
+
+            metadata = new QpContentAttributeMetadata
+            {
+                Alias = QpSystemFieldsDescriptor.LastModifiedBy.DBName,
+                SchemaAlias = QpSystemFieldsDescriptor.LastModifiedBy.Name,
+                TypeName = "Numeric"
+            };
+
+            AddFiltersForNumericField(filterType, filterDefinitions, metadata, typeof(DecimalGraphType));
         }
 
         private static void AddFiltersForNumericField(InputObjectGraphType<object> filterType, Dictionary<string, QpFieldFilterDefinition> filterDefinitions, QpContentAttributeMetadata attribute, Type graphType)
@@ -605,6 +682,7 @@ namespace QP.GraphQL.App.Schema
         {
             return new RelayPaginationArgs
             {
+                Skip = context.GetArgument<int?>("skip"),
                 After = context.GetArgument<string>("after"),
                 First = context.GetArgument<int?>("first"),
                 Before = context.GetArgument<string>("before"),
