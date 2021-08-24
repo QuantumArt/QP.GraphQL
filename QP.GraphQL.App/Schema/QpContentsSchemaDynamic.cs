@@ -69,7 +69,7 @@ namespace QP.GraphQL.App.Schema
 
                     map[contentMeta.Id] = baseType;
 
-                    ImplementInterface(baseType, articleInterface);
+                    //ImplementInterface(baseType, articleInterface);                    
 
                     foreach (var extension in contentMeta.Extensions)
                     {
@@ -79,7 +79,7 @@ namespace QP.GraphQL.App.Schema
                             Description = extension.FriendlyName
                         };
 
-                        ImplementInterface(extensionType, articleInterface);
+                        //ImplementInterface(extensionType, articleInterface);
                         map[extension.Id] = extensionType;
                     }
 
@@ -101,6 +101,10 @@ namespace QP.GraphQL.App.Schema
                         }
                             
                     };
+
+
+                    // TODO: make interface inplements interface
+                    articleInterface.Fields.ToList().ForEach(f => interfaceType.AddField(f));
 
                     complexType = interfaceType;
                     graphTypes[contentMeta.Id] = interfaceType;
@@ -409,7 +413,7 @@ namespace QP.GraphQL.App.Schema
                                             var loader = dataLoaderAccessor.Context.GetOrAddCollectionBatchLoader<int, QpArticle>($"M2M_{attribute.Id}_filter({filterArgsKey})_order({orderArgsKey})",
                                                 (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>().GetRelatedM2mArticlesByIdList(
                                                     relationContentId,
-                                                    null,
+                                                    metadata[relationContentId].Context,
                                                     ids,
                                                     Convert.ToInt32(context.Source.AllFields[attributeAlias]),
                                                     isBackward,
@@ -423,19 +427,20 @@ namespace QP.GraphQL.App.Schema
                                     };
                                 }
                                 else if (isO2m)
-                                {
+                                {                                    
                                     f = new FieldType
                                     {
                                         Name = attribute.SchemaAlias,
                                         Description = attribute.FriendlyName,
                                         ResolvedType = graphTypes[relationContentId],
+                                        
                                         Arguments = null,
                                         Resolver = new FuncFieldResolver<QpArticle, IDataLoaderResult<QpArticle>>(context =>
                                         {
                                             var state = GetQpArticleState(context.UserContext);
                                             var loader = dataLoaderAccessor.Context.GetOrAddBatchLoader<int, QpArticle>($"Batch_{relationContentId}",
                                                 (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>()
-                                                            .GetArticlesByIdList(relationContentId, null, ids, state));
+                                                            .GetArticlesByIdList(relationContentId, metadata[relationContentId].Context, ids, state));
 
                                             return loader.LoadAsync(Convert.ToInt32(context.Source.AllFields[attributeAlias]));
                                         })
@@ -488,7 +493,7 @@ namespace QP.GraphQL.App.Schema
                                             var loader = dataLoaderAccessor.Context.GetOrAddCollectionBatchLoader<int, QpArticle>($"M2O_{attribute.Id}_filter({filterArgsKey})_order({orderArgsKey})",
                                                 (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>().GetRelatedM2oArticlesByIdList(
                                                     relationContentId,
-                                                    null,
+                                                    metadata[relationContentId].Context,
                                                     ids,
                                                     backwardFieldName,
                                                     orderArgs,
@@ -552,11 +557,14 @@ namespace QP.GraphQL.App.Schema
 
                 var baseType = map[contentMetaBase.Id] as IObjectGraphType;
                 ImplementInterface(baseType, interfaceType);
+                baseType.AddResolvedInterface(articleInterface);
+
 
                 foreach (var contentMeta in contentMetaBase.Extensions)
                 {
                     var extensionType = map[contentMeta.Id] as IObjectGraphType;
                     ImplementInterface(extensionType, interfaceType);
+                    extensionType.AddResolvedInterface(articleInterface);
                 }
             }
 
@@ -582,7 +590,7 @@ namespace QP.GraphQL.App.Schema
                         var state = GetQpArticleState(context.UserContext);
                         var loader = dataLoaderAccessor.Context.GetOrAddBatchLoader<int, QpArticle>($"Batch_{contentId}",
                                             (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>()
-                                                        .GetArticlesByIdList(contentId, contentMeta.ExtensionMap, ids, state));
+                                                        .GetArticlesByIdList(contentId, contentMeta.Context, ids, state));
 
                         return loader.LoadAsync(Convert.ToInt32(context.GetArgument<int>("id")));
                     })
@@ -605,7 +613,7 @@ namespace QP.GraphQL.App.Schema
                         var state = GetQpArticleState(context.UserContext);
                         var needTotalCount = context.SubFields.Any(f => f.Key == "totalCount");
                         var relayResult = await context.RequestServices.GetRequiredService<IQpArticlesAccessor>().GetPagedArticles(contentId,
-                                contentMeta.ExtensionMap,
+                                contentMeta.Context,
                                 GetOrderArguments(context), 
                                 GetFilterArguments(context, filterDefinitionsByContentTypes[contentId]),
                                 GetPaginationArguments(context),
