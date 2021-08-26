@@ -140,7 +140,15 @@ namespace QP.GraphQL.DAL
 
                         if (baseRef.ClassifierAttributeId.Value == baseClassifier.Id)
                         {
-                            baseContent.Extensions.Add(content);
+                            var duplicates = content.Attributes.Where(a => baseContent.Attributes.Any(ba => ba.SchemaAlias.Equals(a.SchemaAlias, StringComparison.InvariantCultureIgnoreCase)));
+
+                            foreach(var d in duplicates)
+                            {
+                                d.SchemaAlias = $"{content.AliasSingular}_{d.SchemaAlias}";
+                            }
+
+
+                            baseContent.Extensions.Add(content);                            
                         }
 
                         contentMap.Remove(id);

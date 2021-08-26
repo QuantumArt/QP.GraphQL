@@ -40,7 +40,7 @@ namespace QP.GraphQL.DAL
             var command = Connection.CreateCommand();
 
             var fields = GetContentFields(rootcontext);
-            command.CommandText = $"select {fields} from {GetContentTable(contentId, state)} where {QpSystemFieldsDescriptor.Id.DBName} in (select id from {QueryService.GetIdTable("@articleds")})";
+            command.CommandText = $"select {fields} from {GetContentTable(state, rootcontext)} where {rootcontext.TableALias}.{QpSystemFieldsDescriptor.Id.DBName} in (select id from {QueryService.GetIdTable("@articleds")})";
             command.CommandType = CommandType.Text;
             command.Parameters.Add(QueryService.GetIdParam("@articleds", articleIds));
 
@@ -64,8 +64,10 @@ namespace QP.GraphQL.DAL
             if (Connection.State != ConnectionState.Open)
                 await Connection.OpenAsync();
 
+            var fields = GetContentFields(rootcontext);
+
             var query = @$"
-                select m2m.item_ids, t.*
+                select m2m.item_ids, {fields}
                 from
                 (select
                     {BuildIdsFieldClause(relationId, state, isBackward)} as item_ids,
@@ -73,8 +75,8 @@ namespace QP.GraphQL.DAL
                  from {GetLinkTable(relationId, state, isBackward)}
                  where id in (select id from {QueryService.GetIdTable("@articleds")})
                  group by linked_id) as m2m
-                 join {GetContentTable(contentId, state, rootcontext, $" on {rootcontext.TableALias}.{QpSystemFieldsDescriptor.Id.DBName} = m2m.linked_id")}
-                   where {whereContext} {(orderBy != null && orderBy.Any() ? "order by " + BuildOrderbyClause(orderBy, false) : "")}";
+                 join {GetContentTable(state, rootcontext, $" on {rootcontext.TableALias}.{QpSystemFieldsDescriptor.Id.DBName} = m2m.linked_id")}
+                   where {whereContext} {(orderBy != null && orderBy.Any() ? "order by " + BuildOrderbyClause(orderBy, false, rootcontext) : "")}";
 
             var context = new QueryContext(query, whereContext);
             context.Parameters.Add(QueryService.GetIdParam("@articleds", articleIds));
@@ -100,10 +102,12 @@ namespace QP.GraphQL.DAL
             if (Connection.State != ConnectionState.Open)
                 await Connection.OpenAsync();
 
+            var fields = GetContentFields(rootcontext);
+
             var query = @$"
-                select *
-                from {GetContentTable(contentId, state)}
-                where {AddDelimiter(backwardFieldname)} in (select id from {QueryService.GetIdTable("@articleds")}) and {whereContext} {(orderBy != null && orderBy.Any() ? "order by " + BuildOrderbyClause(orderBy, false) : "")}";
+                select {fields}
+                from {GetContentTable(state, rootcontext)}
+                where {AddDelimiter(backwardFieldname)} in (select id from {QueryService.GetIdTable("@articleds")}) and {whereContext} {(orderBy != null && orderBy.Any() ? "order by " + BuildOrderbyClause(orderBy, false, rootcontext) : "")}";
 
 
             var context = new QueryContext(query, whereContext);
@@ -111,7 +115,7 @@ namespace QP.GraphQL.DAL
 
             using (var reader = await context.GetCommand(Connection).ExecuteReaderAsync())
             {
-                return ParseReaderForM2oLookup(reader, contentId, backwardFieldname);
+                return ParseReaderForM2oLookup(reader, rootcontext, backwardFieldname);
             }
         }
 
@@ -126,7 +130,7 @@ namespace QP.GraphQL.DAL
             string query;
             var whereContext = BuildWhereContext(where);
             var pagingWhereContext = QueryContext.EmptyWhere;
-            var contentTable = GetContentTable(contentId, state, rootcontext);
+            var contentTable = GetContentTable(state, rootcontext);
             var fields = GetContentFields(rootcontext);
 
             if (paginationArgs.Skip.HasValue && paginationArgs.First.HasValue)
@@ -143,7 +147,7 @@ namespace QP.GraphQL.DAL
                     throw new ArgumentException($"Pagination parameter(s) {string.Join(", ", parameters)} must be positive/nonnegative");
 
                 orderBy = PrepareOrderBy(orderBy);
-                query = BuildTakeSkipClause(contentId, whereContext, orderBy, paginationArgs.First.Value, paginationArgs.Skip.Value, state);
+                query = BuildTakeSkipClause(rootcontext, fields, whereContext, orderBy, paginationArgs.First.Value, paginationArgs.Skip.Value, state);
             }
             else if (paginationArgs.First.HasValue || paginationArgs.Last.HasValue)
             {
@@ -157,25 +161,25 @@ namespace QP.GraphQL.DAL
 
                 if (cursor != null)
                 {
-                    pagingWhereContext = BuildPagingWhereContext(contentId, orderBy, cursor, !takeRowsFromBeginning, state);
+                    pagingWhereContext = BuildPagingWhereContext(rootcontext, orderBy, cursor, !takeRowsFromBeginning, state);
                 }
 
                 if (takeRowsFromBeginning)
                 {
 
-                    query = BuildLimitClause(contentId, whereContext, pagingWhereContext, orderBy, count + 1, false, state);
+                    query = BuildLimitClause(rootcontext, fields, whereContext, pagingWhereContext, orderBy, count + 1, false, state);
                 }
                 else
                 {
                     query = $@" select * from (
-                        {BuildLimitClause(contentId, whereContext, pagingWhereContext, orderBy, count + 1, true, state)}
-                    ) tbl order by {BuildOrderbyClause(orderBy, false)}";
+                        {BuildLimitClause(rootcontext, fields, whereContext, pagingWhereContext, orderBy, count + 1, true, state)}
+                    ) tbl order by {BuildOrderbyClause(orderBy, false, rootcontext, isExternalQuery:true)}";
                 }
             }
             else
             {
                 if (orderBy != null)
-                    query = $"select {fields} from {contentTable} where {whereContext} order by {BuildOrderbyClause(orderBy, false)}";
+                    query = $"select {fields} from {contentTable} where {whereContext} order by {BuildOrderbyClause(orderBy, false, rootcontext)}";
                 else
                     query = $"select {fields} from {contentTable} where {whereContext}";
             }
@@ -220,7 +224,7 @@ namespace QP.GraphQL.DAL
                     result.Articles.RemoveAt(result.Articles.Count - 1);
                 }
 
-                result.HasPreviousPage = await HasOtherPage(contentId, whereContext, orderBy, state, result.Articles.FirstOrDefault()?.Id.ToString(), paginationArgs, false);
+                result.HasPreviousPage = await HasOtherPage(rootcontext, whereContext, orderBy, state, result.Articles.FirstOrDefault()?.Id.ToString(), paginationArgs, false);
             }
             else if (paginationArgs.Last.HasValue)
             {
@@ -231,7 +235,7 @@ namespace QP.GraphQL.DAL
                     result.Articles.RemoveAt(0);
                 }
 
-                result.HasNextPage = await HasOtherPage(contentId, whereContext, orderBy, state, result.Articles.LastOrDefault()?.Id.ToString(), paginationArgs, true);
+                result.HasNextPage = await HasOtherPage(rootcontext, whereContext, orderBy, state, result.Articles.LastOrDefault()?.Id.ToString(), paginationArgs, true);
             }
             else
             {
@@ -243,16 +247,16 @@ namespace QP.GraphQL.DAL
         }
 
         protected abstract string BuildIdsFieldClause(int linkId, QpArticleState state, bool isBackward);
-        protected abstract string BuildLimitClause(int contentId, string whereClause, string pagingWhereClause, IList<string> orderBy, int count, bool reverse, QpArticleState state);
+        protected abstract string BuildLimitClause(RootContext context, string fields, string whereClause, string pagingWhereClause, IList<string> orderBy, int count, bool reverse, QpArticleState state);
         protected abstract string AddDelimiter(string identifier);
 
-        protected virtual string BuildTakeSkipClause(int contentId, string whereClause, IList<string> orderBy, int take, int skip, QpArticleState state)
+        protected virtual string BuildTakeSkipClause(RootContext context, string fields, string whereClause, IList<string> orderBy, int take, int skip, QpArticleState state)
         {
-            var query = $"select * from {GetContentTable(contentId, state)} where {whereClause}";
+            var query = $"select {fields} from {GetContentTable(state, context)} where {whereClause}";
 
             if (orderBy != null)
             {
-                query = $"{query} order by {BuildOrderbyClause(orderBy, false)}";
+                query = $"{query} order by {BuildOrderbyClause(orderBy, false, context)}";
             }
 
             return query;
@@ -274,7 +278,7 @@ namespace QP.GraphQL.DAL
             return orderBy;
         }
 
-        private async Task<bool> HasOtherPage(int contentId, QueryContext whereContext, IList<string> orderBy, QpArticleState state, string cursor, RelayPaginationArgs paginationArgs, bool checkNext)
+        private async Task<bool> HasOtherPage(RootContext context, QueryContext whereContext, IList<string> orderBy, QpArticleState state, string cursor, RelayPaginationArgs paginationArgs, bool checkNext)
         {
             if ((checkNext && paginationArgs.Last.HasValue && paginationArgs.Before == null) || (!checkNext && paginationArgs.First.HasValue && paginationArgs.After == null))
             {
@@ -282,8 +286,8 @@ namespace QP.GraphQL.DAL
             }
             else if (Settings.CalculatePagingData && cursor != null)
             {
-                var pagingWhereContext = BuildPagingWhereContext(contentId, orderBy, cursor, !checkNext, state);
-                var query = BuildLimitClause(contentId, whereContext, pagingWhereContext, orderBy, 1, !checkNext, state);
+                var pagingWhereContext = BuildPagingWhereContext(context, orderBy, cursor, !checkNext, state);
+                var query = BuildLimitClause(context, "*", whereContext, pagingWhereContext, orderBy, 1, !checkNext, state);
                 query = $"select count(*) from ({query}) tbl";
 
                 var commandForNextPageCount = new QueryContext(query, whereContext, pagingWhereContext).GetCommand(Connection);
@@ -321,7 +325,7 @@ namespace QP.GraphQL.DAL
                     {
                         var value = reader[f.QueryAlias];
                         value = value is DBNull ? null : value;
-                        article.AllFields.Add(f.Alias.ToLowerInvariant(), value);
+                        article.AllFields.Add(f.QueryAlias.ToLowerInvariant(), value);
                     }
                 }
 
@@ -331,7 +335,7 @@ namespace QP.GraphQL.DAL
             {
                 var value = reader[f.QueryAlias];
                 value = value is DBNull ? null : value;
-                article.AllFields.Add(f.Alias.ToLowerInvariant(), value);
+                article.AllFields.Add(f.QueryAlias.ToLowerInvariant(), value);
             }
 
             return article;
@@ -355,7 +359,6 @@ namespace QP.GraphQL.DAL
             var result = new List<Tuple<int[], QpArticle>>();
             while (reader.Read())
             {
-
                 int[] ids = reader.GetString(0).Split(',').Select(Int32.Parse).ToArray();
 
                 var article = ParseSingleQpArticleReader(reader, rootcontext);
@@ -369,28 +372,14 @@ namespace QP.GraphQL.DAL
         }
 
 
-        private ILookup<int, QpArticle> ParseReaderForM2oLookup(DbDataReader reader, int contentId, string backwardFieldname)
+        private ILookup<int, QpArticle> ParseReaderForM2oLookup(DbDataReader reader, RootContext rootcontext, string backwardFieldname)
         {
             var result = new List<Tuple<int, QpArticle>>();
             while (reader.Read())
             {
-                var article = new QpArticle(contentId);
-                int backward_id = 0;
-                for (var i = 0; i < reader.FieldCount; i++)
-                {
-                    var column = reader.GetName(i).ToLowerInvariant();
-
-                    if (!ParseSystemFields(reader, article, i))
-                    {
-                        if (string.Equals(column, backwardFieldname, StringComparison.OrdinalIgnoreCase))
-                        {
-                            backward_id = reader.GetInt32(i);
-                        }
-
-                        var val = reader.GetValue(i);
-                        article.AllFields.Add(column, val is DBNull ? null : val);
-                    }
-                }
+                var article = ParseSingleQpArticleReader(reader, rootcontext);
+                var backwardFieldAlias = rootcontext.Fields.FirstOrDefault(f => f.Alias == backwardFieldname)?.QueryAlias;
+                int backward_id = backwardFieldAlias == null ? 0 : (int)reader[backwardFieldAlias];                
 
                 if (article.Id > 0 && backward_id > 0)
                 {
@@ -401,7 +390,7 @@ namespace QP.GraphQL.DAL
             return result.ToLookup(t => t.Item1, t => t.Item2);
         }
 
-        protected static string BuildOrderbyClause(IList<string> orderBy, bool reverse)
+        protected string BuildOrderbyClause(IList<string> orderBy, bool reverse, RootContext context, bool isExternalQuery = false)
         {
             StringBuilder orderByClauseBuilder = new StringBuilder();
             foreach (var orderByToken in orderBy)
@@ -409,16 +398,30 @@ namespace QP.GraphQL.DAL
                 if (orderByClauseBuilder.Length > 0)
                     orderByClauseBuilder.Append(", ");
 
-                if (orderByToken.Contains("^"))
-                    orderByClauseBuilder.Append($"{orderByToken.Replace("^", "")} {(reverse ? "asc" : "desc")}");
+                bool desc = orderByToken.Contains("^");
+                string order = desc ? orderByToken.Replace("^", "") : orderByToken;
+
+                if (isExternalQuery)
+                {
+                    var fieldorder = context.Fields.FirstOrDefault(f => f.Alias.Equals(order, StringComparison.InvariantCultureIgnoreCase))?.QueryAlias;
+                    order = fieldorder == null ? order : fieldorder;
+                    order = AddDelimiter(order);
+                }
                 else
-                    orderByClauseBuilder.Append($"{orderByToken} {(reverse ? "desc" : "asc")}");
+                {
+                    order = $"{context.TableALias}.{AddDelimiter(order)}";
+                }
+
+                if (desc)
+                    orderByClauseBuilder.Append($"{order} {(reverse ? "asc" : "desc")}");
+                else
+                    orderByClauseBuilder.Append($"{order} {(reverse ? "desc" : "asc")}");
             }
 
             return orderByClauseBuilder.ToString();
         }
 
-        private QueryContext BuildPagingWhereContext(int contentId, IList<string> orderBy, string cursor, bool reverse, QpArticleState state)
+        private QueryContext BuildPagingWhereContext(RootContext rootcontext, IList<string> orderBy, string cursor, bool reverse, QpArticleState state)
         {
             //для понимания структуры выражения where, которое строится здесь, надо изучить
             //https://stackoverflow.com/questions/56989560/how-to-get-a-cursor-for-pagination-in-graphql-from-a-database
@@ -426,12 +429,12 @@ namespace QP.GraphQL.DAL
             //курсор здесь, в отличие от большинства реализаций курсор-пагинаций, просто content_item_id, посчитал, что приводить его к base64 просто лишняя работа
             //альтернативно можно бы сделать курсор как content_item_id + все значения, участвующих в запросе полей сортировки, 
             //так бы это более соответствовало стандарту в части того, что курсор должен быть "opaque"
-            if (!Int32.TryParse(cursor, out _))
+            if (!Int32.TryParse(cursor, out int cursorValue))
                 throw new ArgumentException("Cursor must be integer");
 
-            var cursorParam = QueryService.GetParameter("cursor", SqlDbType.NVarChar, cursor);
+            var cursorParam = QueryService.GetParameter("cursor", SqlDbType.Int, cursorValue);
 
-            StringBuilder whereClauseBuilder = new StringBuilder($"(content_item_id {(reverse ? "<" : ">")} {cursor})");
+            StringBuilder whereClauseBuilder = new StringBuilder($"({rootcontext.TableALias}.{QpSystemFieldsDescriptor.Id.DBName} {(reverse ? "<" : ">")} {cursorParam.ParameterName})");
 
             foreach (var orderByToken in orderBy.Reverse())
             {
@@ -452,8 +455,8 @@ namespace QP.GraphQL.DAL
                 }
 
                 whereClauseBuilder.Insert(0, @$"
-({orderByColumn} {(ascending ^ reverse ? ">" : "<")} (select {orderByColumn} from {GetContentTable(contentId, state)} where content_item_id={cursorParam.ParameterName}) or 
-({orderByColumn} = (select {orderByColumn} from {GetContentTable(contentId, state)} where content_item_id={cursorParam.ParameterName}) and ");
+({rootcontext.TableALias}.{AddDelimiter(orderByColumn)} {(ascending ^ reverse ? ">" : "<")} (select {orderByColumn} from {GetContentTable(rootcontext.ContetnId, state)} where content_item_id={cursorParam.ParameterName}) or 
+({rootcontext.TableALias}.{AddDelimiter(orderByColumn)} = (select {orderByColumn} from {GetContentTable(rootcontext.ContetnId, state)} where content_item_id={cursorParam.ParameterName}) and ");
                 whereClauseBuilder.Append("))");
             }
             
@@ -494,9 +497,9 @@ namespace QP.GraphQL.DAL
             };
         }
 
-        protected static string GetContentTable(int contentId, QpArticleState state, RootContext rootcontext, string on = null)
+        protected static string GetContentTable(QpArticleState state, RootContext rootcontext, string on = null)
         {
-            var table = GetContentTable(contentId, state);
+            var table = GetContentTable(rootcontext.ContetnId, state);
             var result = new StringBuilder($"{table} {rootcontext.TableALias}{on}");
 
                 foreach (var item in rootcontext.Extensions)
@@ -514,24 +517,25 @@ namespace QP.GraphQL.DAL
 
             foreach (var f in QpSystemFieldsDescriptor.SystemDBFields)
             {
-                result.Append($" {rootcontext.TableALias}.[{f}] {f},");
+                var df = AddDelimiter(f);
+                result.Append($" {rootcontext.TableALias}.{df} {df},");
             }
 
             if (rootcontext.Classifier != null)
             {
-                result.Append($" {rootcontext.TableALias}.[{rootcontext.Classifier.Alias}] {rootcontext.Classifier.QueryAlias},");
+                result.Append($" {rootcontext.TableALias}.{AddDelimiter(rootcontext.Classifier.Alias)} {AddDelimiter(rootcontext.Classifier.QueryAlias)},");
             }
 
             foreach (var f in rootcontext.Fields)
             {
-                result.Append($" {rootcontext.TableALias}.[{f.Alias}] {f.QueryAlias},");
+                result.Append($" {rootcontext.TableALias}.{AddDelimiter(f.Alias)} {AddDelimiter(f.QueryAlias)},");
             }
 
             foreach (var item in rootcontext.Extensions)
             {
                 foreach (var f in item.Fields)
                 {
-                    result.Append($" {item.TableALias}.[{f.Alias}] {f.QueryAlias},");
+                    result.Append($" {item.TableALias}.{AddDelimiter(f.Alias)} {AddDelimiter(f.QueryAlias)},");
                 }
             }
 

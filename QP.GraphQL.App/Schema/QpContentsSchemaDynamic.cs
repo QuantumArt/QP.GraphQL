@@ -52,7 +52,7 @@ namespace QP.GraphQL.App.Schema
             //базовый интерфейс статьи с системными полями
             var articleInterface = new ArticleInterface();
 
-            //THE NEW ONE
+            //типы и интерфейсы графа для статей и расширений
             foreach (var contentMeta in metadata.Values)
             {
                 ComplexGraphType<QpArticle> complexType = null;
@@ -69,8 +69,6 @@ namespace QP.GraphQL.App.Schema
 
                     map[contentMeta.Id] = baseType;
 
-                    //ImplementInterface(baseType, articleInterface);                    
-
                     foreach (var extension in contentMeta.Extensions)
                     {
                         var extensionType = new ObjectGraphType<QpArticle>()
@@ -79,7 +77,6 @@ namespace QP.GraphQL.App.Schema
                             Description = extension.FriendlyName
                         };
 
-                        //ImplementInterface(extensionType, articleInterface);
                         map[extension.Id] = extensionType;
                     }
 
@@ -101,7 +98,6 @@ namespace QP.GraphQL.App.Schema
                         }
                             
                     };
-
 
                     // TODO: make interface inplements interface
                     articleInterface.Fields.ToList().ForEach(f => interfaceType.AddField(f));
@@ -269,286 +265,37 @@ namespace QP.GraphQL.App.Schema
                 {
                     foreach (var attribute in contentMeta.Attributes)
                     {
-                        FieldType f = null;
-                        var attributeAlias = attribute.Alias.ToLowerInvariant();
-                        switch (attribute.TypeName)
+                        if (!attribute.IsClassifier)
                         {
-                            case "String":
-                            case "Textbox":
-                            case "VisualEdit":
-                                f = new FieldType
-                                {
-                                    Name = attribute.SchemaAlias,
-                                    Description = attribute.FriendlyName,
-                                    Type = typeof(StringGraphType),
-                                    Arguments = null,
-                                    Resolver = new FuncFieldResolver<QpArticle, object>(context => attribute.Content.Site.ReplacePlaceholders(
-                                        context.Source.AllFields[attributeAlias] as string))
-                                };
-                                break;
-                            case "Numeric":
-                                //TODO: можно быть более точным в выборе GraphType, не всегда DecimalGraphType, еще может быть IntGraphType/LongGraphType
-                                f = new FieldType
-                                {
-                                    Name = attribute.SchemaAlias,
-                                    Description = attribute.FriendlyName,
-                                    Type = typeof(DecimalGraphType),
-                                    Arguments = null,
-                                    Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.AllFields[attributeAlias])
-                                };
-                                break;
-                            case "Boolean":
-                                f = new FieldType
-                                {
-                                    Name = attribute.SchemaAlias,
-                                    Description = attribute.FriendlyName,
-                                    Type = typeof(BooleanGraphType),
-                                    Arguments = null,
-                                    Resolver = new FuncFieldResolver<QpArticle, bool>(context => Convert.ToInt32(context.Source.AllFields[attributeAlias]) == 1)
-                                };
-                                break;
-                            case "Date":
-                                f = new FieldType
-                                {
-                                    Name = attribute.SchemaAlias,
-                                    Description = attribute.FriendlyName,
-                                    Type = typeof(DateGraphType),
-                                    Arguments = null,
-                                    Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.AllFields[attributeAlias])
-                                };
-                                break;
-                            case "Time":
-                                f = new FieldType
-                                {
-                                    Name = attribute.SchemaAlias,
-                                    Description = attribute.FriendlyName,
-                                    Type = typeof(TimeGraphType),
-                                    Arguments = null,
-                                    Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.AllFields[attributeAlias])
-                                };
-                                break;
-                            case "DateTime":
-                                f = new FieldType
-                                {
-                                    Name = attribute.SchemaAlias,
-                                    Description = attribute.FriendlyName,
-                                    Type = typeof(DateTimeGraphType),
-                                    Arguments = null,
-                                    Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.AllFields[attributeAlias])
-                                };
-                                break;
-                            case "File":
-                            case "Image":
-                            case "Dynamic Image":
-                                f = new FieldType
-                                {
-                                    Name = attribute.SchemaAlias,
-                                    Description = attribute.FriendlyName,
-                                    Type = typeof(UriGraphType),
-                                    Arguments = null,
-                                    Resolver = new FuncFieldResolver<QpArticle, object>(context =>
-                                    {
-                                        var url = context.Source.AllFields[attributeAlias] as string;
+                            var f = GetFieldType(attribute, dataLoaderAccessor, metadata, graphTypes, graphListTypes, orderGraphTypes, filterGraphTypes, filterDefinitionsByContentTypes);
 
-                                        if (string.IsNullOrEmpty(url))
-                                        {
-                                            return null;
-                                        }
-                                        else
-                                        {
-                                            return $"{attribute.GetBaseUrl(true, false)}/{url}";
-                                        }
-                                    })
-                                };
-                                break;
-                            case "Relation":
-                                bool isM2m = false;
-                                bool isO2m = false;
-                                int relationContentId = 0;
-                                if (attribute.M2mRelationId.HasValue && attribute.RelatedM2mContentId.HasValue && attribute.M2mIsBackward.HasValue)
-                                {
-                                    isM2m = true;
-                                    relationContentId = attribute.RelatedM2mContentId.Value;
-                                }
-                                else if (attribute.RelatedO2mContentId.HasValue)
-                                {
-                                    isO2m = true;
-                                    relationContentId = attribute.RelatedO2mContentId.Value;
-                                }
-                                else
-                                {
-                                    throw new Exception($"Incorrect relation field metadata. Field id = {attribute.Id}. Cannot decide O2M or M2M.");
-                                }
-
-                                if (!metadata.ContainsKey(relationContentId))
-                                {
-                                    //если контента, на который идёт ссылка, нет в графе - делаем просто int-овое поле вместо ссылки
-                                    f = new FieldType
-                                    {
-                                        Name = attribute.SchemaAlias,
-                                        Description = attribute.FriendlyName,
-                                        Type = typeof(IntGraphType),
-                                        Arguments = null,
-                                        Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.AllFields[attributeAlias])
-                                    };
-                                }
-                                else if (isM2m)
-                                {
-                                    f = new FieldType
-                                    {
-                                        Name = attribute.SchemaAlias,
-                                        Description = attribute.FriendlyName,
-                                        ResolvedType = graphListTypes[relationContentId],
-                                        Arguments = GetRelationArguments(filterGraphTypes, orderGraphTypes, relationContentId),
-                                        Resolver = new FuncFieldResolver<QpArticle, IDataLoaderResult<IEnumerable<QpArticle>>>(context =>
-                                        {
-                                            var state = GetQpArticleState(context.UserContext);
-                                            var isBackward = attribute.M2mIsBackward.Value;
-                                            var orderArgs = GetOrderArguments(context);
-                                            var filterArgs = GetFilterArguments(context, filterDefinitionsByContentTypes[relationContentId]);
-                                        //нужно составить ключ для даталоадера с учётом сортировки и фильтра
-                                        var orderArgsKey = GetRelationOrderArgsKey(orderArgs);
-                                            var filterArgsKey = GetRelationFilterArgsKey(filterArgs);
-
-                                            var loader = dataLoaderAccessor.Context.GetOrAddCollectionBatchLoader<int, QpArticle>($"M2M_{attribute.Id}_filter({filterArgsKey})_order({orderArgsKey})",
-                                                (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>().GetRelatedM2mArticlesByIdList(
-                                                    relationContentId,
-                                                    metadata[relationContentId].Context,
-                                                    ids,
-                                                    Convert.ToInt32(context.Source.AllFields[attributeAlias]),
-                                                    isBackward,
-                                                    orderArgs,
-                                                    filterArgs,
-                                                    state));
-
-
-                                            return loader.LoadAsync(context.Source.Id);
-                                        })
-                                    };
-                                }
-                                else if (isO2m)
-                                {                                    
-                                    f = new FieldType
-                                    {
-                                        Name = attribute.SchemaAlias,
-                                        Description = attribute.FriendlyName,
-                                        ResolvedType = graphTypes[relationContentId],
-                                        
-                                        Arguments = null,
-                                        Resolver = new FuncFieldResolver<QpArticle, IDataLoaderResult<QpArticle>>(context =>
-                                        {
-                                            var state = GetQpArticleState(context.UserContext);
-                                            var loader = dataLoaderAccessor.Context.GetOrAddBatchLoader<int, QpArticle>($"Batch_{relationContentId}",
-                                                (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>()
-                                                            .GetArticlesByIdList(relationContentId, metadata[relationContentId].Context, ids, state));
-
-                                            return loader.LoadAsync(Convert.ToInt32(context.Source.AllFields[attributeAlias]));
-                                        })
-                                    };
-                                }
-
-                                break;
-                            case "Relation Many-to-One":
-                                relationContentId = 0;
-                                string backwardFieldName = null;
-                                if (attribute.RelatedM2oContentId.HasValue && !string.IsNullOrEmpty(attribute.RelatedM2oBackwardField))
-                                {
-                                    relationContentId = attribute.RelatedM2oContentId.Value;
-                                    backwardFieldName = attribute.RelatedM2oBackwardField;
-                                }
-                                else
-                                {
-                                    throw new Exception($"Incorrect M2O relation field metadata. Field id = {attribute.Id}.");
-                                }
-
-                                if (!metadata.ContainsKey(relationContentId))
-                                {
-                                    //если контента, на который идёт ссылка, нет в графе - делаем просто int-овое поле вместо ссылки
-                                    f = new FieldType
-                                    {
-                                        Name = attribute.SchemaAlias,
-                                        Description = attribute.FriendlyName,
-                                        Type = typeof(IntGraphType),
-                                        Arguments = null,
-                                        Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.AllFields[attributeAlias])
-                                    };
-                                }
-                                else
-                                {
-                                    f = new FieldType
-                                    {
-                                        Name = attribute.SchemaAlias,
-                                        Description = attribute.FriendlyName,
-                                        ResolvedType = graphListTypes[relationContentId],
-                                        Arguments = GetRelationArguments(filterGraphTypes, orderGraphTypes, relationContentId),
-                                        Resolver = new FuncFieldResolver<QpArticle, IDataLoaderResult<IEnumerable<QpArticle>>>(context =>
-                                        {
-                                            var state = GetQpArticleState(context.UserContext);
-                                            var orderArgs = GetOrderArguments(context);
-                                            var filterArgs = GetFilterArguments(context, filterDefinitionsByContentTypes[relationContentId]);
-                                        //нужно составить ключ для даталоадера с учётом сортировки и фильтра
-                                        var orderArgsKey = GetRelationOrderArgsKey(orderArgs);
-                                            var filterArgsKey = GetRelationFilterArgsKey(filterArgs);
-
-                                            var loader = dataLoaderAccessor.Context.GetOrAddCollectionBatchLoader<int, QpArticle>($"M2O_{attribute.Id}_filter({filterArgsKey})_order({orderArgsKey})",
-                                                (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>().GetRelatedM2oArticlesByIdList(
-                                                    relationContentId,
-                                                    metadata[relationContentId].Context,
-                                                    ids,
-                                                    backwardFieldName,
-                                                    orderArgs,
-                                                    filterArgs,
-                                                    state));
-
-                                            return loader.LoadAsync(context.Source.Id);
-                                        })
-                                    };
-                                }
-                                break;
+                            if (f != null)
+                                graphType.AddField(f);
                         }
-
-                        if (f != null)
-                            graphType.AddField(f);
                     }
                 }
                 
                 if (contentMeta.HasExtensions)
                 {
-                    foreach(var m in contentMeta.Extensions)
+                    var graphExTypes = graphExtensionsTypes[contentMeta.Id];
+
+                    foreach (var m in contentMeta.Extensions)
                     {
-                        var graphExTypes = graphExtensionsTypes[contentMeta.Id];
+                        var exType = graphExTypes[m.Id];
 
-                        foreach(var exType in graphExTypes.Values) {
-
-                            foreach (var attribute in m.Attributes)
+                        foreach (var attribute in m.Attributes)
+                        {
+                            if (!attribute.ClassifierAttributeId.HasValue)
                             {
-                                FieldType f = null;
-                                var attributeAlias = attribute.Alias.ToLowerInvariant();
-                                switch (attribute.TypeName)
-                                {
-                                    case "String":
-                                    case "Textbox":
-                                    case "VisualEdit":
-                                        f = new FieldType
-                                        {
-                                            Name = attribute.SchemaAlias,
-                                            Description = attribute.FriendlyName,
-                                            Type = typeof(StringGraphType),
-                                            Arguments = null,
-                                            Resolver = new FuncFieldResolver<QpArticle, object>(context => attribute.Content.Site.ReplacePlaceholders(
-                                                context.Source.AllFields[attributeAlias] as string))
-                                        };
-                                        break;
-                                }
+                                var f = GetFieldType(attribute, dataLoaderAccessor, metadata, graphTypes, graphListTypes, orderGraphTypes, filterGraphTypes, filterDefinitionsByContentTypes);
 
                                 if (f != null)
                                     exType.AddField(f);
                             }
                         }
-                    }                    
+                    }
                 }
             }
-
 
             foreach (var contentMetaBase in metadata.Values.Where(m => m.HasExtensions))
             {
@@ -629,7 +376,7 @@ namespace QP.GraphQL.App.Schema
 
             graphTypes.Values.ToList().ForEach(RegisterType);
             graphExtensionsTypes.Values.SelectMany(t => t.Values).ToList().ForEach(RegisterType);
-            RegisterType(articleInterface);            
+            RegisterType(articleInterface);
 
             Query = rootQuery;
             Description = "Autogenerated QP contents schema";
@@ -641,6 +388,257 @@ namespace QP.GraphQL.App.Schema
         {
             interfaceType.Fields.ToList().ForEach(f => objectType.AddField(f));
             objectType.AddResolvedInterface(interfaceType);
+        }
+
+        private static FieldType GetFieldType(
+            QpContentAttributeMetadata attribute,
+            IDataLoaderContextAccessor dataLoaderAccessor,
+            IDictionary<int, QpContentMetadata> metadata,
+            Dictionary<int, IComplexGraphType> graphTypes,
+            Dictionary<int, ListGraphType> graphListTypes,
+            Dictionary<int, ListGraphType> orderGraphTypes,
+            Dictionary<int, InputObjectGraphType<object>> filterGraphTypes,
+            Dictionary<int, Dictionary<string, QpFieldFilterDefinition>> filterDefinitionsByContentTypes)
+        {
+            FieldType f = null;
+            var attributeAlias = $"cid_{attribute.ContentId}_{attribute.Alias}".ToLowerInvariant();
+            switch (attribute.TypeName)
+            {
+                case "String":
+                case "Textbox":
+                case "VisualEdit":
+                    f = new FieldType
+                    {
+                        Name = attribute.SchemaAlias,
+                        Description = attribute.FriendlyName,
+                        Type = typeof(StringGraphType),
+                        Arguments = null,
+                        Resolver = new FuncFieldResolver<QpArticle, object>(context => attribute.Content.Site.ReplacePlaceholders(
+                            context.Source.AllFields[attributeAlias] as string))
+                    };
+                    break;
+                case "Numeric":
+                    //TODO: можно быть более точным в выборе GraphType, не всегда DecimalGraphType, еще может быть IntGraphType/LongGraphType
+                    f = new FieldType
+                    {
+                        Name = attribute.SchemaAlias,
+                        Description = attribute.FriendlyName,
+                        Type = typeof(DecimalGraphType),
+                        Arguments = null,
+                        Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.AllFields[attributeAlias])
+                    };
+                    break;
+                case "Boolean":
+                    f = new FieldType
+                    {
+                        Name = attribute.SchemaAlias,
+                        Description = attribute.FriendlyName,
+                        Type = typeof(BooleanGraphType),
+                        Arguments = null,
+                        Resolver = new FuncFieldResolver<QpArticle, bool>(context => Convert.ToInt32(context.Source.AllFields[attributeAlias]) == 1)
+                    };
+                    break;
+                case "Date":
+                    f = new FieldType
+                    {
+                        Name = attribute.SchemaAlias,
+                        Description = attribute.FriendlyName,
+                        Type = typeof(DateGraphType),
+                        Arguments = null,
+                        Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.AllFields[attributeAlias])
+                    };
+                    break;
+                case "Time":
+                    f = new FieldType
+                    {
+                        Name = attribute.SchemaAlias,
+                        Description = attribute.FriendlyName,
+                        Type = typeof(TimeGraphType),
+                        Arguments = null,
+                        Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.AllFields[attributeAlias])
+                    };
+                    break;
+                case "DateTime":
+                    f = new FieldType
+                    {
+                        Name = attribute.SchemaAlias,
+                        Description = attribute.FriendlyName,
+                        Type = typeof(DateTimeGraphType),
+                        Arguments = null,
+                        Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.AllFields[attributeAlias])
+                    };
+                    break;
+                case "File":
+                case "Image":
+                case "Dynamic Image":
+                    f = new FieldType
+                    {
+                        Name = attribute.SchemaAlias,
+                        Description = attribute.FriendlyName,
+                        Type = typeof(UriGraphType),
+                        Arguments = null,
+                        Resolver = new FuncFieldResolver<QpArticle, object>(context =>
+                        {
+                            var url = context.Source.AllFields[attributeAlias] as string;
+
+                            if (string.IsNullOrEmpty(url))
+                            {
+                                return null;
+                            }
+                            else
+                            {
+                                return $"{attribute.GetBaseUrl(true, false)}/{url}";
+                            }
+                        })
+                    };
+                    break;
+                case "Relation":
+                    bool isM2m = false;
+                    bool isO2m = false;
+                    int relationContentId = 0;
+                    if (attribute.M2mRelationId.HasValue && attribute.RelatedM2mContentId.HasValue && attribute.M2mIsBackward.HasValue)
+                    {
+                        isM2m = true;
+                        relationContentId = attribute.RelatedM2mContentId.Value;
+                    }
+                    else if (attribute.RelatedO2mContentId.HasValue)
+                    {
+                        isO2m = true;
+                        relationContentId = attribute.RelatedO2mContentId.Value;
+                    }
+                    else
+                    {
+                        throw new Exception($"Incorrect relation field metadata. Field id = {attribute.Id}. Cannot decide O2M or M2M.");
+                    }
+
+                    if (!metadata.ContainsKey(relationContentId))
+                    {
+                        //если контента, на который идёт ссылка, нет в графе - делаем просто int-овое поле вместо ссылки
+                        f = new FieldType
+                        {
+                            Name = attribute.SchemaAlias,
+                            Description = attribute.FriendlyName,
+                            Type = typeof(IntGraphType),
+                            Arguments = null,
+                            Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.AllFields[attributeAlias])
+                        };
+                    }
+                    else if (isM2m)
+                    {
+                        f = new FieldType
+                        {
+                            Name = attribute.SchemaAlias,
+                            Description = attribute.FriendlyName,
+                            ResolvedType = graphListTypes[relationContentId],
+                            Arguments = GetRelationArguments(filterGraphTypes, orderGraphTypes, relationContentId),
+                            Resolver = new FuncFieldResolver<QpArticle, IDataLoaderResult<IEnumerable<QpArticle>>>(context =>
+                            {
+                                var state = GetQpArticleState(context.UserContext);
+                                var isBackward = attribute.M2mIsBackward.Value;
+                                var orderArgs = GetOrderArguments(context);
+                                var filterArgs = GetFilterArguments(context, filterDefinitionsByContentTypes[relationContentId]);
+                                //нужно составить ключ для даталоадера с учётом сортировки и фильтра
+                                var orderArgsKey = GetRelationOrderArgsKey(orderArgs);
+                                var filterArgsKey = GetRelationFilterArgsKey(filterArgs);
+
+                                var loader = dataLoaderAccessor.Context.GetOrAddCollectionBatchLoader<int, QpArticle>($"M2M_{attribute.Id}_filter({filterArgsKey})_order({orderArgsKey})",
+                                    (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>().GetRelatedM2mArticlesByIdList(
+                                        relationContentId,
+                                        metadata[relationContentId].Context,
+                                        ids,
+                                        Convert.ToInt32(context.Source.AllFields[attributeAlias]),
+                                        isBackward,
+                                        orderArgs,
+                                        filterArgs,
+                                        state));
+
+
+                                return loader.LoadAsync(context.Source.Id);
+                            })
+                        };
+                    }
+                    else if (isO2m)
+                    {
+                        f = new FieldType
+                        {
+                            Name = attribute.SchemaAlias,
+                            Description = attribute.FriendlyName,
+                            ResolvedType = graphTypes[relationContentId],
+
+                            Arguments = null,
+                            Resolver = new FuncFieldResolver<QpArticle, IDataLoaderResult<QpArticle>>(context =>
+                            {
+                                var state = GetQpArticleState(context.UserContext);
+                                var loader = dataLoaderAccessor.Context.GetOrAddBatchLoader<int, QpArticle>($"Batch_{relationContentId}",
+                                    (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>()
+                                                .GetArticlesByIdList(relationContentId, metadata[relationContentId].Context, ids, state));
+
+                                return loader.LoadAsync(Convert.ToInt32(context.Source.AllFields[attributeAlias]));
+                            })
+                        };
+                    }
+
+                    break;
+                case "Relation Many-to-One":
+                    relationContentId = 0;
+                    string backwardFieldName = null;
+                    if (attribute.RelatedM2oContentId.HasValue && !string.IsNullOrEmpty(attribute.RelatedM2oBackwardField))
+                    {
+                        relationContentId = attribute.RelatedM2oContentId.Value;
+                        backwardFieldName = attribute.RelatedM2oBackwardField;
+                    }
+                    else
+                    {
+                        throw new Exception($"Incorrect M2O relation field metadata. Field id = {attribute.Id}.");
+                    }
+
+                    if (!metadata.ContainsKey(relationContentId))
+                    {
+                        //если контента, на который идёт ссылка, нет в графе - делаем просто int-овое поле вместо ссылки
+                        f = new FieldType
+                        {
+                            Name = attribute.SchemaAlias,
+                            Description = attribute.FriendlyName,
+                            Type = typeof(IntGraphType),
+                            Arguments = null,
+                            Resolver = new FuncFieldResolver<QpArticle, object>(context => context.Source.AllFields[attributeAlias])
+                        };
+                    }
+                    else
+                    {
+                        f = new FieldType
+                        {
+                            Name = attribute.SchemaAlias,
+                            Description = attribute.FriendlyName,
+                            ResolvedType = graphListTypes[relationContentId],
+                            Arguments = GetRelationArguments(filterGraphTypes, orderGraphTypes, relationContentId),
+                            Resolver = new FuncFieldResolver<QpArticle, IDataLoaderResult<IEnumerable<QpArticle>>>(context =>
+                            {
+                                var state = GetQpArticleState(context.UserContext);
+                                var orderArgs = GetOrderArguments(context);
+                                var filterArgs = GetFilterArguments(context, filterDefinitionsByContentTypes[relationContentId]);
+                                //нужно составить ключ для даталоадера с учётом сортировки и фильтра
+                                var orderArgsKey = GetRelationOrderArgsKey(orderArgs);
+                                var filterArgsKey = GetRelationFilterArgsKey(filterArgs);
+
+                                var loader = dataLoaderAccessor.Context.GetOrAddCollectionBatchLoader<int, QpArticle>($"M2O_{attribute.Id}_filter({filterArgsKey})_order({orderArgsKey})",
+                                    (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>().GetRelatedM2oArticlesByIdList(
+                                        relationContentId,
+                                        metadata[relationContentId].Context,
+                                        ids,
+                                        backwardFieldName,
+                                        orderArgs,
+                                        filterArgs,
+                                        state));
+
+                                return loader.LoadAsync(context.Source.Id);
+                            })
+                        };
+                    }
+                    break;
+            }
+
+            return f;
         }
 
         private static void AddSortValue(EnumerationGraphType type, string name, string dbName)
