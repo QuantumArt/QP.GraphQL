@@ -21,23 +21,23 @@ namespace QP.GraphQL.Interfaces.Metadata
         public RootContext Context =>
             new RootContext
             {
-                ContetnId = Id,                
+                ContentId = Id,                
                 Fields = Attributes.Where(a => !a.IsClassifier).Select(a => new FieldContext
                 {
-                    ContetnId = Id,
+                    ContentId = Id,
                     Alias = a.Alias,
                 }).ToArray(),
                 Classifier = Attributes.Where(a => a.IsClassifier).Select(a => new FieldContext
                 {
-                    ContetnId = Id,
+                    ContentId = Id,
                     Alias = a.Alias,
                 }).FirstOrDefault(),
                 Extensions = Extensions.Select(e => new ExtensionContext {
-                    ContetnId = e.Id,
+                    ContentId = e.Id,
                     ReferenceToBase = e.Attributes.First(a => a.ClassifierAttributeId.HasValue).Alias,
                     Fields = e.Attributes.Where(a => !a.ClassifierAttributeId.HasValue).Select(a => new FieldContext
                     {
-                        ContetnId = e.Id,
+                        ContentId = e.Id,
                         Alias = a.Alias,
                     }).ToArray()
                 }).ToArray(),

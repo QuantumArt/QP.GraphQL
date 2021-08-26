@@ -96,7 +96,7 @@ namespace QP.GraphQL.DAL
                 IsClassifier = this.IsClassifier,
                 SubFolder = this.SubFolder,
                 UseSiteLibrary = this.UseSiteLibrary,
-                SourceAttributeId = this.SourceAttributeId,
+                SourceAttributeId = this.SourceAttributeId
             };
         }
     }
