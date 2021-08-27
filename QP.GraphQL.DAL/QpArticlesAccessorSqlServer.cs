@@ -27,14 +27,14 @@ namespace QP.GraphQL.DAL
               ),1,1,'')";
         }
 
-        protected override string BuildLimitClause(int contentId, string whereClause, string pagingWhereClause, IList<string> orderBy, int count, bool reverse, QpArticleState state)
+        protected override string BuildLimitClause(RootContext context, string fields, string whereClause, string pagingWhereClause, IList<string> orderBy, int count, bool reverse, QpArticleState state)
         {
-            return $"select top({count}) * from {GetContentTable(contentId, state)} where {whereClause} and {pagingWhereClause} order by {BuildOrderbyClause(orderBy, reverse)}";
+            return $"select top({count}) {fields} from {GetContentTable(state, context)} where {whereClause} and {pagingWhereClause} order by {BuildOrderbyClause(orderBy, reverse, context)}";
         }
 
-        protected override string BuildTakeSkipClause(int contentId, string whereClause, IList<string> orderBy, int take, int skip, QpArticleState state)
+        protected override string BuildTakeSkipClause(RootContext context, string fields, string whereClause, IList<string> orderBy, int take, int skip, QpArticleState state)
         {
-            var query = base.BuildTakeSkipClause(contentId, whereClause, orderBy, take, skip, state);
+            var query = base.BuildTakeSkipClause(context, fields, whereClause, orderBy, take, skip, state);
 
             query = $"{query} offset {skip} rows fetch next {take} rows only";
 
