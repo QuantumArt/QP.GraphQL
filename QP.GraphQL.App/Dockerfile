@@ -6,6 +6,7 @@ EXPOSE 80
 
 FROM mcr.microsoft.com/dotnet/sdk:5.0 AS build
 WORKDIR /src
+COPY nuget.config ./
 COPY ["QP.GraphQL.App/QP.GraphQL.App.csproj", "QP.GraphQL.App/"]
 COPY ["QP.GraphQL.Interfaces/QP.GraphQL.Interfaces.csproj", "QP.GraphQL.Interfaces/"]
 COPY ["QP.GraphQL.DAL/QP.GraphQL.DAL.csproj", "QP.GraphQL.DAL/"]
