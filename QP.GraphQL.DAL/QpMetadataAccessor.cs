@@ -25,8 +25,9 @@ namespace QP.GraphQL.DAL
         protected QpMetadataSettings Settings { get; }
         protected IQueryService QueryService { get; private set; }
         protected ILogger<QpMetadataAccessor> Logger { get; }
+        private object _locker = new object();
 
-        public IDictionary<int, QpContentMetadata> GetContentsMetadata()
+        public IDictionary<int, QpContentMetadata> GetContentsMetadata(QpPluginMetadata plugin)
         {
             if (Connection.State != ConnectionState.Open)
                 Connection.Open();
@@ -51,7 +52,7 @@ namespace QP.GraphQL.DAL
 	                at.type_name as TypeName,
                     ca.index_flag as Indexed,
 	                ca.link_id as M2mRelationId,
-					case   
+				    case   
                         when ctc.l_content_id = c.CONTENT_ID then ctc.r_content_id
                         when ctc.r_content_id = c.CONTENT_ID then ctc.l_content_id
                     end as RelatedM2mContentId,
@@ -62,29 +63,30 @@ namespace QP.GraphQL.DAL
 	                rca.content_id as RelatedO2mContentId,
                     bca.content_id as RelatedM2oContentId,
                     bca.attribute_name as RelatedM2oBackwardField,
-					ca.CLASSIFIER_ATTRIBUTE_ID  as ClassifierAttributeId,
-					ca.IS_CLASSIFIER as IsClassifier,
+				    ca.CLASSIFIER_ATTRIBUTE_ID  as ClassifierAttributeId,
+				    ca.IS_CLASSIFIER as IsClassifier,
 	                c.content_name as ContentFriendlyName,
-	                c.net_content_name as ContentAliasSingular,
-	                c.net_plural_content_name as ContentAliasPlural,
+				    pc.aliassingular as ContentAliasSingular,
+				    pc.aliasplural as ContentAliasPlural,
 	                c.description as ContentDescription,
                     ca.subfolder as SubFolder,
                     ca.use_site_library as UseSiteLibrary,
                     ca.persistent_attr_id as SourceAttributeId
                 from content_attribute ca 
-                join content c on c.content_id = ca.content_id
+                join content c on c.content_id = ca.content_id			
+			    join plugin_content_{plugin.Id} pc on pc.id = c.content_id						
                 join site s on c.site_id = s.site_id
                 join attribute_type at on at.attribute_type_id = ca.attribute_type_id
+			    left join plugin_content_attribute_{plugin.Id} as pca on pca.id = ca.attribute_id
                 left join content_to_content ctc on ctc.link_id = ca.link_id
                 left join content_attribute rca on rca.attribute_id = ca.related_attribute_id
                 left join content_attribute bca on bca.attribute_id = ca.back_related_attribute_id
-                where c.content_id in ({(filterContents ? "select id from " + QueryService.GetIdTable("@contentIds") : "select content_id from content")})
-                ";
+			    where pc.isexposed = true and (pca.ishidden is null or pca.ishidden = false)";
 
             var command = Connection.CreateCommand();
             command.CommandText = query;
             command.CommandType = CommandType.Text;
-            
+
             if (filterContents)
             {
                 command.Parameters.Add(QueryService.GetIdParam("@contentIds", Settings.ContentIds));
@@ -124,7 +126,7 @@ namespace QP.GraphQL.DAL
                 content.Attributes.Add(attribute);
             }
 
-            foreach(var id in contentMap.Keys)
+            foreach (var id in contentMap.Keys)
             {
                 var content = contentMap[id];
 
@@ -142,13 +144,13 @@ namespace QP.GraphQL.DAL
                         {
                             var duplicates = content.Attributes.Where(a => baseContent.Attributes.Any(ba => ba.SchemaAlias.Equals(a.SchemaAlias, StringComparison.InvariantCultureIgnoreCase)));
 
-                            foreach(var d in duplicates)
+                            foreach (var d in duplicates)
                             {
                                 d.SchemaAlias = $"{content.AliasSingular}_{d.SchemaAlias}";
                             }
 
 
-                            baseContent.Extensions.Add(content);                            
+                            baseContent.Extensions.Add(content);
                         }
 
                         contentMap.Remove(id);
@@ -157,6 +159,41 @@ namespace QP.GraphQL.DAL
             }
 
             return contentMap;
+        }
+
+        public QpPluginMetadata GetPluginMetadata(string instanceKey)
+        {
+            if (Connection.State != ConnectionState.Open)
+                Connection.Open();
+
+            var instanceKeyParam = QueryService.GetParameter("instance_key", SqlDbType.NVarChar, instanceKey);
+            var command = Connection.CreateCommand();
+            command.CommandType = CommandType.Text;            
+            command.Parameters.Add(instanceKeyParam);
+            command.CommandText = $@"
+                select id, version
+                from plugin
+                where instance_key = {instanceKeyParam.ParameterName}";            
+
+            var metadata = command.ExecuteReader().Parse<QpPluginMetadata>().FirstOrDefault();
+
+            Connection.Close();
+            return metadata;
+        }
+
+        public string GetApiKey(QpPluginMetadata plugin)
+        {
+            if (Connection.State != ConnectionState.Open)
+                Connection.Open();
+
+            var query = $"select apikey from plugin_site_{plugin.Id}";
+
+            var command = Connection.CreateCommand();
+            command.CommandText = query;
+            command.CommandType = CommandType.Text;
+
+            var metadata = command.ExecuteScalar();
+            return metadata as string;
         }
     }
 }
