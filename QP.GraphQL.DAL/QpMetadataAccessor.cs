@@ -1,6 +1,5 @@
 ﻿using Dapper;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using QP.GraphQL.Interfaces.DAL;
 using QP.GraphQL.Interfaces.Metadata;
 using System;
@@ -23,7 +22,6 @@ namespace QP.GraphQL.DAL
         public DbConnection Connection { get; }
         protected IQueryService QueryService { get; private set; }
         protected ILogger<QpMetadataAccessor> Logger { get; }
-        private object _locker = new object();
 
         public IDictionary<int, QpContentMetadata> GetContentsMetadata(QpPluginMetadata plugin)
         {
