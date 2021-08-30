@@ -65,7 +65,6 @@ namespace QP.GraphQL.App
 
             // add schema
             services.AddSingleton<TimeGraphType>();
-            services.Configure<QpMetadataSettings>(Configuration);
             services.Configure<SchemaSettings>(Configuration);
             services.AddTransient<QpContentsSchemaDynamic>();   
             services.AddSingleton<ISchemaFactory, SchemaFactory>();

@@ -13,16 +13,14 @@ namespace QP.GraphQL.DAL
 {
     public class QpMetadataAccessor : IQpMetadataAccessor
     {
-        public QpMetadataAccessor(DbConnection connection, IOptions<QpMetadataSettings> options, IQueryService queryService, ILogger<QpMetadataAccessor> logger)
+        public QpMetadataAccessor(DbConnection connection, IQueryService queryService, ILogger<QpMetadataAccessor> logger)
         {
             Connection = connection;
-            Settings = options.Value;
             QueryService = queryService;
             Logger = logger;
         }
         
         public DbConnection Connection { get; }
-        protected QpMetadataSettings Settings { get; }
         protected IQueryService QueryService { get; private set; }
         protected ILogger<QpMetadataAccessor> Logger { get; }
         private object _locker = new object();
@@ -31,8 +29,6 @@ namespace QP.GraphQL.DAL
         {
             if (Connection.State != ConnectionState.Open)
                 Connection.Open();
-
-            var filterContents = Settings.ContentIds != null && Settings.ContentIds.Any();
 
             var query = $@"
                 select ca.attribute_id as Id,
@@ -81,16 +77,11 @@ namespace QP.GraphQL.DAL
                 left join content_to_content ctc on ctc.link_id = ca.link_id
                 left join content_attribute rca on rca.attribute_id = ca.related_attribute_id
                 left join content_attribute bca on bca.attribute_id = ca.back_related_attribute_id
-			    where pc.isexposed = true and (pca.ishidden is null or pca.ishidden = false)";
+			    where pc.isexposed = {QueryService.AsBool(true)} and (pca.ishidden is null or pca.ishidden = {QueryService.AsBool(false)})";
 
             var command = Connection.CreateCommand();
             command.CommandText = query;
             command.CommandType = CommandType.Text;
-
-            if (filterContents)
-            {
-                command.Parameters.Add(QueryService.GetIdParam("@contentIds", Settings.ContentIds));
-            }
 
             var metadataItems = command.ExecuteReader().Parse<QpMetadataItemInternal>();
             var siteMap = new Dictionary<int, QpSiteMetadata>();
