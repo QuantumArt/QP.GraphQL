@@ -147,6 +147,7 @@ namespace QP.GraphQL.DAL
                 }
             }
 
+            Connection.Close();
             return contentMap;
         }
 
@@ -182,6 +183,7 @@ namespace QP.GraphQL.DAL
             command.CommandType = CommandType.Text;
 
             var metadata = command.ExecuteScalar();
+            Connection.Close();
             return metadata as string;
         }
     }
