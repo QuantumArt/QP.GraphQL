@@ -7,6 +7,7 @@ using GraphQL.Types.Relay.DataObjects;
 using GraphQL.Utilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using QP.GraphQL.App.Types;
 using QP.GraphQL.DAL;
 using QP.GraphQL.Interfaces.Articles;
@@ -23,362 +24,383 @@ namespace QP.GraphQL.App.Schema
     public class QpContentsSchemaDynamic : GraphQLTypes.Schema
     {
         public Guid Id { get; private set; } = Guid.NewGuid();
-        private readonly ILogger<QpContentsSchemaDynamic> _logger;
-        private readonly GraphQLSettings _settings;
+        private readonly ILogger<QpContentsSchemaDynamic> _logger;        
 
         public QpContentsSchemaDynamic(IServiceProvider serviceProvider,
             IQpMetadataValidator validator,
             IDataLoaderContextAccessor dataLoaderAccessor,
             IQpMetadataAccessor metadataAccessor,
+            IOptions<QpPluginSettings> options,
             ILogger<QpContentsSchemaDynamic> logger
             )
             : base(serviceProvider)
         {
             _logger = logger;
             _logger.LogInformation("Start create schema {schemaId}", Id);
+            var settings = options.Value;
+            var plugin = metadataAccessor.GetPluginMetadata(settings.InstanceKey);
+            string error = null;
 
-            var metadata = metadataAccessor.GetContentsMetadata();
-            var graphTypes = new Dictionary<int, IComplexGraphType>();
-            var graphListTypes = new Dictionary<int, ListGraphType>();
-            var graphExtensionsTypes = new Dictionary<int, Dictionary<int, ObjectGraphType<QpArticle>>>();            
-            var connectionGraphTypes = new Dictionary<int, ObjectGraphType<Connection<QpArticle, Edge<QpArticle>>>>();
-            var orderGraphTypes = new Dictionary<int, ListGraphType>();
-            var filterGraphTypes = new Dictionary<int, InputObjectGraphType<object>>();
-            var filterDefinitionsByContentTypes = new Dictionary<int, Dictionary<string, QpFieldFilterDefinition>>();
-
-            //валидация полей
-            metadata = validator.ValidateFields(metadata);
-
-            //базовый интерфейс статьи с системными полями
-            var articleInterface = new ArticleInterface();
-
-            //типы и интерфейсы графа для статей и расширений
-            foreach (var contentMeta in metadata.Values)
+            if (plugin == null)
             {
-                ComplexGraphType<QpArticle> complexType = null;
-
-                if (contentMeta.HasExtensions)
-                {
-                    var map = new Dictionary<int, ObjectGraphType<QpArticle>>();
-
-                    var baseType = new ObjectGraphType<QpArticle>()
-                    {
-                        Name = contentMeta.AliasSingular,
-                        Description = contentMeta.FriendlyName
-                    };
-
-                    map[contentMeta.Id] = baseType;
-
-                    foreach (var extension in contentMeta.Extensions)
-                    {
-                        var extensionType = new ObjectGraphType<QpArticle>()
-                        {
-                            Name = extension.AliasSingular,
-                            Description = extension.FriendlyName
-                        };
-
-                        map[extension.Id] = extensionType;
-                    }
-
-                    var interfaceType = new InterfaceGraphType<QpArticle>()
-                    {
-                        Name = contentMeta.AliasSingular + "Interface",
-                        Description = contentMeta.FriendlyName,
-                        ResolveType = obj =>
-                        {
-                            var article = (QpArticle)obj;
-                            if (article.ExtensionContentId.HasValue)
-                            {
-                                return map[article.ExtensionContentId.Value];
-                            }
-                            else
-                            {
-                                return baseType;
-                            }
-                        }
-                            
-                    };
-
-                    // TODO: make interface inplements interface
-                    articleInterface.Fields.ToList().ForEach(f => interfaceType.AddField(f));
-
-                    complexType = interfaceType;
-                    graphTypes[contentMeta.Id] = interfaceType;
-                    graphListTypes[contentMeta.Id] = new ListGraphType(interfaceType);
-                    graphExtensionsTypes[contentMeta.Id] = map;
-                }
-                else if (!contentMeta.IsExtension)
-                {
-                    var graphType = new ObjectGraphType<QpArticle>()
-                    {
-                        Name = contentMeta.AliasSingular,
-                        Description = contentMeta.FriendlyName
-                    };
-
-                    ImplementInterface(graphType, articleInterface);
-                    RegisterType(graphType);
-
-                    complexType = graphType;
-                    graphTypes[contentMeta.Id] = graphType;
-                    graphListTypes[contentMeta.Id] = new ListGraphType(graphType);
-                }
-
-                if (complexType != null)
-                {
-
-                    //создаём input-тип, который будет использоваться для задания сортировки по статьям этого типа
-                    //я решил дать возможность сортировки только по Indexed-полям (если их не будет, то не будет и возможности сортировки)
-                    if (contentMeta.Attributes.Any(ca => ca.Indexed))
-                    {
-                        var orderEnumType = new EnumerationGraphType
-                        {
-                            Name = $"PossibleOrderFor{complexType.Name}",
-                            Description = $"Possible order by literals for content type {complexType.Name}"
-                        };
-                        foreach (var attribute in contentMeta.Attributes.Where(ca => ca.Indexed))
-                        {
-                            AddSortValue(orderEnumType, attribute.SchemaAlias, attribute.SchemaAlias);
-                        }
-
-                        AddSortValue(orderEnumType, QpSystemFieldsDescriptor.Id.Name, QpSystemFieldsDescriptor.Id.DBName);
-                        AddSortValue(orderEnumType, QpSystemFieldsDescriptor.StatusTypeId.Name, QpSystemFieldsDescriptor.StatusTypeId.DBName);
-                        AddSortValue(orderEnumType, QpSystemFieldsDescriptor.Created.Name, QpSystemFieldsDescriptor.Created.DBName);
-                        AddSortValue(orderEnumType, QpSystemFieldsDescriptor.Modified.Name, QpSystemFieldsDescriptor.Modified.DBName);
-                        AddSortValue(orderEnumType, QpSystemFieldsDescriptor.LastModifiedBy.Name, QpSystemFieldsDescriptor.LastModifiedBy.DBName);
-
-                        orderGraphTypes[contentMeta.Id] = new ListGraphType(orderEnumType);
-                    }
-
-                    //создаём input-тип, который будет использоваться для задания фильтра по статьям этого типа
-                    //также нам понадобится словарь, чтобы потом в резолверах расшифровать все эти фильтры, к каким полям они относятся и какую операцию в себе несут
-                    var filterType = new InputObjectGraphType<object>()
-                    {
-                        Name = $"FilterFor{complexType.Name}",
-                        Description = $"Filter object for content type {complexType.Name}"
-                    };
-                    var filterDefinitions = new Dictionary<string, QpFieldFilterDefinition>();
-
-                    AddFiltersForSystemFields(filterType, filterDefinitions);
-
-                    foreach (var attribute in contentMeta.Attributes.Where(ca => !ca.Alias.Contains(' ')))
-                    {
-                        switch (attribute.TypeName)
-                        {
-                            case "String":
-                            case "Textbox":
-                            case "VisualEdit":
-                                AddFiltersForStringField(filterType, filterDefinitions, attribute);
-                                break;
-                            case "Numeric":
-                                AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(DecimalGraphType));
-                                break;
-                            case "Boolean":
-                                AddSimpleFiltersForField(filterType, filterDefinitions, attribute, typeof(BooleanGraphType));
-                                break;
-                            case "Date":
-                                AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(DateGraphType));
-                                break;
-                            case "Time":
-                                AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(TimeGraphType));
-                                break;
-                            case "DateTime":
-                                AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(DateTimeGraphType));
-                                break;
-                            case "Relation":
-                                //TODO: сейчас будет работать только для O2M связей, нет фильтров ни по M2M, ни по M2O. также нет фильтров второго уровня (по какому-то полю из связи o2m)
-                                AddSimpleFiltersForField(filterType, filterDefinitions, attribute, typeof(IntGraphType));
-                                break;
-                        }
-                    }
-                    filterGraphTypes[contentMeta.Id] = filterType;
-                    filterDefinitionsByContentTypes[contentMeta.Id] = filterDefinitions;
-
-                    //создаём connection-тип (https://relay.dev/graphql/connections.htm)
-                    var connectionType = new ObjectGraphType<Connection<QpArticle, Edge<QpArticle>>>()
-                    {
-                        Name = $"{complexType.Name}Connection",
-                        Description = $"A connection to a list of objects of type `{contentMeta.AliasSingular}`"
-                    };
-
-                    //для connection-типа нам понадобится edge-тип
-                    var edgeType = new ObjectGraphType<Edge<QpArticle>>()
-                    {
-                        Name = $"{complexType.Name}Edge",
-                        Description = $"Edge of a connection containing a node (a row of `{contentMeta.AliasSingular}`) and cursor"
-                    };
-                    edgeType.AddField(new FieldType
-                    {
-                        Name = "node",
-                        Description = $"A single row of `{contentMeta.AliasSingular}` within the result data set.",
-                        ResolvedType = complexType,
-                        Resolver = new FuncFieldResolver<Edge<QpArticle>, QpArticle>(context => context.Source.Node)
-                    });
-                    edgeType.AddField(new FieldType
-                    {
-                        Name = "cursor",
-                        Description = "The cursor of this edge's node. A cursor is a string representation of a unique identifier of this node.",
-                        Type = typeof(StringGraphType),
-                        Resolver = new FuncFieldResolver<Edge<QpArticle>, string>(context => context.Source.Node.Id.ToString())//в качестве курсора используем Id, подробнее см в QpDataAccessor
-                    });
-                    var edgeListType = new ListGraphType(edgeType);
-
-                    //стандартные поля для connection-типа
-                    connectionType.AddField(new FieldType
-                    {
-                        Name = "totalCount",
-                        Description = "A count of the total number of objects in this connection, ignoring pagination.",
-                        Type = typeof(IntGraphType),
-                        Resolver = new FuncFieldResolver<Connection<QpArticle, Edge<QpArticle>>, object>(context => context.Source.TotalCount)
-                    });
-                    connectionType.AddField(new FieldType
-                    {
-                        Name = "pageInfo",
-                        Description = "Cursor-based pagination details.",
-                        Type = typeof(NonNullGraphType<PageInfoType>),
-                        Resolver = new FuncFieldResolver<Connection<QpArticle, Edge<QpArticle>>, PageInfo>(context => context.Source.PageInfo)
-                    });
-                    connectionType.AddField(new FieldType
-                    {
-                        Name = "edges",
-                        Description = "The result data set, stored as a list of edges containing a node (the data) and a cursor (a unique identifier for the data).",
-                        ResolvedType = edgeListType,
-                        Resolver = new FuncFieldResolver<Connection<QpArticle, Edge<QpArticle>>, List<Edge<QpArticle>>>(context => context.Source.Edges)
-                    });
-                    connectionType.AddField(new FieldType
-                    {
-                        Name = "items",
-                        Description = "The result data set, stored as a list of edges containing a node (the data) and a cursor (a unique identifier for the data).",
-                        ResolvedType = graphListTypes[contentMeta.Id],
-                        Resolver = new FuncFieldResolver<Connection<QpArticle, Edge<QpArticle>>, List<QpArticle>>(context => context.Source.Items)
-                    });
-                    connectionGraphTypes[contentMeta.Id] = connectionType;
-                }
+                error = "Plugin is not installed";
             }
-
-            //создаём поля для каждого типа графа
-            foreach (var contentId in metadata.Keys)
+            else if (settings.ContractVersion != plugin?.Version)
             {
-                var contentMeta = metadata[contentId];
-                var graphType = graphTypes[contentId];
+                error = "Plugin is not compatible";
+            }
+            
+            Metadata["ERROR"] = error;
 
-                if (!contentMeta.IsExtension)
+            if (error == null)
+            {
+                var apikey = metadataAccessor.GetApiKey(plugin);
+                Metadata["APIKEY"] = apikey;
+
+                var metadata = metadataAccessor.GetContentsMetadata(plugin);
+                var graphTypes = new Dictionary<int, IComplexGraphType>();
+                var graphListTypes = new Dictionary<int, ListGraphType>();
+                var graphExtensionsTypes = new Dictionary<int, Dictionary<int, ObjectGraphType<QpArticle>>>();
+                var connectionGraphTypes = new Dictionary<int, ObjectGraphType<Connection<QpArticle, Edge<QpArticle>>>>();
+                var orderGraphTypes = new Dictionary<int, ListGraphType>();
+                var filterGraphTypes = new Dictionary<int, InputObjectGraphType<object>>();
+                var filterDefinitionsByContentTypes = new Dictionary<int, Dictionary<string, QpFieldFilterDefinition>>();
+
+                //валидация полей
+                metadata = validator.ValidateFields(metadata);
+
+                //базовый интерфейс статьи с системными полями
+                var articleInterface = new ArticleInterface();
+
+                //типы и интерфейсы графа для статей и расширений
+                foreach (var contentMeta in metadata.Values)
                 {
-                    foreach (var attribute in contentMeta.Attributes)
-                    {
-                        if (!attribute.IsClassifier)
-                        {
-                            var f = GetFieldType(attribute, dataLoaderAccessor, metadata, graphTypes, graphListTypes, orderGraphTypes, filterGraphTypes, filterDefinitionsByContentTypes);
+                    ComplexGraphType<QpArticle> complexType = null;
 
-                            if (f != null)
-                                graphType.AddField(f);
+                    if (contentMeta.HasExtensions)
+                    {
+                        var map = new Dictionary<int, ObjectGraphType<QpArticle>>();
+
+                        var baseType = new ObjectGraphType<QpArticle>()
+                        {
+                            Name = contentMeta.AliasSingular,
+                            Description = contentMeta.FriendlyName
+                        };
+
+                        map[contentMeta.Id] = baseType;
+
+                        foreach (var extension in contentMeta.Extensions)
+                        {
+                            var extensionType = new ObjectGraphType<QpArticle>()
+                            {
+                                Name = extension.AliasSingular,
+                                Description = extension.FriendlyName
+                            };
+
+                            map[extension.Id] = extensionType;
                         }
+
+                        var interfaceType = new InterfaceGraphType<QpArticle>()
+                        {
+                            Name = contentMeta.AliasSingular + "Interface",
+                            Description = contentMeta.FriendlyName,
+                            ResolveType = obj =>
+                            {
+                                var article = (QpArticle)obj;
+                                if (article.ExtensionContentId.HasValue)
+                                {
+                                    return map[article.ExtensionContentId.Value];
+                                }
+                                else
+                                {
+                                    return baseType;
+                                }
+                            }
+
+                        };
+
+                        // TODO: make interface inplements interface
+                        articleInterface.Fields.ToList().ForEach(f => interfaceType.AddField(f));
+
+                        complexType = interfaceType;
+                        graphTypes[contentMeta.Id] = interfaceType;
+                        graphListTypes[contentMeta.Id] = new ListGraphType(interfaceType);
+                        graphExtensionsTypes[contentMeta.Id] = map;
+                    }
+                    else if (!contentMeta.IsExtension)
+                    {
+                        var graphType = new ObjectGraphType<QpArticle>()
+                        {
+                            Name = contentMeta.AliasSingular,
+                            Description = contentMeta.FriendlyName
+                        };
+
+                        ImplementInterface(graphType, articleInterface);
+                        RegisterType(graphType);
+
+                        complexType = graphType;
+                        graphTypes[contentMeta.Id] = graphType;
+                        graphListTypes[contentMeta.Id] = new ListGraphType(graphType);
+                    }
+
+                    if (complexType != null)
+                    {
+
+                        //создаём input-тип, который будет использоваться для задания сортировки по статьям этого типа
+                        //я решил дать возможность сортировки только по Indexed-полям (если их не будет, то не будет и возможности сортировки)
+                        if (contentMeta.Attributes.Any(ca => ca.Indexed))
+                        {
+                            var orderEnumType = new EnumerationGraphType
+                            {
+                                Name = $"PossibleOrderFor{complexType.Name}",
+                                Description = $"Possible order by literals for content type {complexType.Name}"
+                            };
+                            foreach (var attribute in contentMeta.Attributes.Where(ca => ca.Indexed))
+                            {
+                                AddSortValue(orderEnumType, attribute.SchemaAlias, attribute.SchemaAlias);
+                            }
+
+                            AddSortValue(orderEnumType, QpSystemFieldsDescriptor.Id.Name, QpSystemFieldsDescriptor.Id.DBName);
+                            AddSortValue(orderEnumType, QpSystemFieldsDescriptor.StatusTypeId.Name, QpSystemFieldsDescriptor.StatusTypeId.DBName);
+                            AddSortValue(orderEnumType, QpSystemFieldsDescriptor.Created.Name, QpSystemFieldsDescriptor.Created.DBName);
+                            AddSortValue(orderEnumType, QpSystemFieldsDescriptor.Modified.Name, QpSystemFieldsDescriptor.Modified.DBName);
+                            AddSortValue(orderEnumType, QpSystemFieldsDescriptor.LastModifiedBy.Name, QpSystemFieldsDescriptor.LastModifiedBy.DBName);
+
+                            orderGraphTypes[contentMeta.Id] = new ListGraphType(orderEnumType);
+                        }
+
+                        //создаём input-тип, который будет использоваться для задания фильтра по статьям этого типа
+                        //также нам понадобится словарь, чтобы потом в резолверах расшифровать все эти фильтры, к каким полям они относятся и какую операцию в себе несут
+                        var filterType = new InputObjectGraphType<object>()
+                        {
+                            Name = $"FilterFor{complexType.Name}",
+                            Description = $"Filter object for content type {complexType.Name}"
+                        };
+                        var filterDefinitions = new Dictionary<string, QpFieldFilterDefinition>();
+
+                        AddFiltersForSystemFields(filterType, filterDefinitions);
+
+                        foreach (var attribute in contentMeta.Attributes.Where(ca => !ca.Alias.Contains(' ')))
+                        {
+                            switch (attribute.TypeName)
+                            {
+                                case "String":
+                                case "Textbox":
+                                case "VisualEdit":
+                                    AddFiltersForStringField(filterType, filterDefinitions, attribute);
+                                    break;
+                                case "Numeric":
+                                    AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(DecimalGraphType));
+                                    break;
+                                case "Boolean":
+                                    AddSimpleFiltersForField(filterType, filterDefinitions, attribute, typeof(BooleanGraphType));
+                                    break;
+                                case "Date":
+                                    AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(DateGraphType));
+                                    break;
+                                case "Time":
+                                    AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(TimeGraphType));
+                                    break;
+                                case "DateTime":
+                                    AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(DateTimeGraphType));
+                                    break;
+                                case "Relation":
+                                    //TODO: сейчас будет работать только для O2M связей, нет фильтров ни по M2M, ни по M2O. также нет фильтров второго уровня (по какому-то полю из связи o2m)
+                                    AddSimpleFiltersForField(filterType, filterDefinitions, attribute, typeof(IntGraphType));
+                                    break;
+                            }
+                        }
+                        filterGraphTypes[contentMeta.Id] = filterType;
+                        filterDefinitionsByContentTypes[contentMeta.Id] = filterDefinitions;
+
+                        //создаём connection-тип (https://relay.dev/graphql/connections.htm)
+                        var connectionType = new ObjectGraphType<Connection<QpArticle, Edge<QpArticle>>>()
+                        {
+                            Name = $"{complexType.Name}Connection",
+                            Description = $"A connection to a list of objects of type `{contentMeta.AliasSingular}`"
+                        };
+
+                        //для connection-типа нам понадобится edge-тип
+                        var edgeType = new ObjectGraphType<Edge<QpArticle>>()
+                        {
+                            Name = $"{complexType.Name}Edge",
+                            Description = $"Edge of a connection containing a node (a row of `{contentMeta.AliasSingular}`) and cursor"
+                        };
+                        edgeType.AddField(new FieldType
+                        {
+                            Name = "node",
+                            Description = $"A single row of `{contentMeta.AliasSingular}` within the result data set.",
+                            ResolvedType = complexType,
+                            Resolver = new FuncFieldResolver<Edge<QpArticle>, QpArticle>(context => context.Source.Node)
+                        });
+                        edgeType.AddField(new FieldType
+                        {
+                            Name = "cursor",
+                            Description = "The cursor of this edge's node. A cursor is a string representation of a unique identifier of this node.",
+                            Type = typeof(StringGraphType),
+                            Resolver = new FuncFieldResolver<Edge<QpArticle>, string>(context => context.Source.Node.Id.ToString())//в качестве курсора используем Id, подробнее см в QpDataAccessor
+                        });
+                        var edgeListType = new ListGraphType(edgeType);
+
+                        //стандартные поля для connection-типа
+                        connectionType.AddField(new FieldType
+                        {
+                            Name = "totalCount",
+                            Description = "A count of the total number of objects in this connection, ignoring pagination.",
+                            Type = typeof(IntGraphType),
+                            Resolver = new FuncFieldResolver<Connection<QpArticle, Edge<QpArticle>>, object>(context => context.Source.TotalCount)
+                        });
+                        connectionType.AddField(new FieldType
+                        {
+                            Name = "pageInfo",
+                            Description = "Cursor-based pagination details.",
+                            Type = typeof(NonNullGraphType<PageInfoType>),
+                            Resolver = new FuncFieldResolver<Connection<QpArticle, Edge<QpArticle>>, PageInfo>(context => context.Source.PageInfo)
+                        });
+                        connectionType.AddField(new FieldType
+                        {
+                            Name = "edges",
+                            Description = "The result data set, stored as a list of edges containing a node (the data) and a cursor (a unique identifier for the data).",
+                            ResolvedType = edgeListType,
+                            Resolver = new FuncFieldResolver<Connection<QpArticle, Edge<QpArticle>>, List<Edge<QpArticle>>>(context => context.Source.Edges)
+                        });
+                        connectionType.AddField(new FieldType
+                        {
+                            Name = "items",
+                            Description = "The result data set, stored as a list of edges containing a node (the data) and a cursor (a unique identifier for the data).",
+                            ResolvedType = graphListTypes[contentMeta.Id],
+                            Resolver = new FuncFieldResolver<Connection<QpArticle, Edge<QpArticle>>, List<QpArticle>>(context => context.Source.Items)
+                        });
+                        connectionGraphTypes[contentMeta.Id] = connectionType;
                     }
                 }
-                
-                if (contentMeta.HasExtensions)
+
+                //создаём поля для каждого типа графа
+                foreach (var contentId in metadata.Keys)
                 {
-                    var graphExTypes = graphExtensionsTypes[contentMeta.Id];
+                    var contentMeta = metadata[contentId];
+                    var graphType = graphTypes[contentId];
 
-                    foreach (var m in contentMeta.Extensions)
+                    if (!contentMeta.IsExtension)
                     {
-                        var exType = graphExTypes[m.Id];
-
-                        foreach (var attribute in m.Attributes)
+                        foreach (var attribute in contentMeta.Attributes)
                         {
-                            if (!attribute.ClassifierAttributeId.HasValue)
+                            if (!attribute.IsClassifier)
                             {
                                 var f = GetFieldType(attribute, dataLoaderAccessor, metadata, graphTypes, graphListTypes, orderGraphTypes, filterGraphTypes, filterDefinitionsByContentTypes);
 
                                 if (f != null)
-                                    exType.AddField(f);
+                                    graphType.AddField(f);
+                            }
+                        }
+                    }
+
+                    if (contentMeta.HasExtensions)
+                    {
+                        var graphExTypes = graphExtensionsTypes[contentMeta.Id];
+
+                        foreach (var m in contentMeta.Extensions)
+                        {
+                            var exType = graphExTypes[m.Id];
+
+                            foreach (var attribute in m.Attributes)
+                            {
+                                if (!attribute.ClassifierAttributeId.HasValue)
+                                {
+                                    var f = GetFieldType(attribute, dataLoaderAccessor, metadata, graphTypes, graphListTypes, orderGraphTypes, filterGraphTypes, filterDefinitionsByContentTypes);
+
+                                    if (f != null)
+                                        exType.AddField(f);
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            foreach (var contentMetaBase in metadata.Values.Where(m => m.HasExtensions))
-            {
-                var interfaceType = graphTypes[contentMetaBase.Id] as IInterfaceGraphType;
-                var map = graphExtensionsTypes[contentMetaBase.Id];
-
-                var baseType = map[contentMetaBase.Id] as IObjectGraphType;
-                ImplementInterface(baseType, interfaceType);
-                baseType.AddResolvedInterface(articleInterface);
-
-
-                foreach (var contentMeta in contentMetaBase.Extensions)
+                foreach (var contentMetaBase in metadata.Values.Where(m => m.HasExtensions))
                 {
-                    var extensionType = map[contentMeta.Id] as IObjectGraphType;
-                    ImplementInterface(extensionType, interfaceType);
-                    extensionType.AddResolvedInterface(articleInterface);
+                    var interfaceType = graphTypes[contentMetaBase.Id] as IInterfaceGraphType;
+                    var map = graphExtensionsTypes[contentMetaBase.Id];
+
+                    var baseType = map[contentMetaBase.Id] as IObjectGraphType;
+                    ImplementInterface(baseType, interfaceType);
+                    baseType.AddResolvedInterface(articleInterface);
+
+
+                    foreach (var contentMeta in contentMetaBase.Extensions)
+                    {
+                        var extensionType = map[contentMeta.Id] as IObjectGraphType;
+                        ImplementInterface(extensionType, interfaceType);
+                        extensionType.AddResolvedInterface(articleInterface);
+                    }
                 }
-            }
 
-            //создаём рут
-            var rootQuery = new ObjectGraphType<QpArticle>
-            {
-                Name = "Query"
-            };
-
-            foreach (var contentId in metadata.Keys)
-            {
-                var contentMeta = metadata[contentId];
-                rootQuery.AddField(new FieldType
+                //создаём рут
+                var rootQuery = new ObjectGraphType<QpArticle>
                 {
-                    Name = contentMeta.AliasSingular,
-                    Description = contentMeta.FriendlyName + " по id", 
-                    ResolvedType = graphTypes[contentId],
-                    Arguments = new QueryArguments(
-                        new QueryArgument<NonNullGraphType<IntGraphType>> { Name = "Id", Description = "id of the article" }
-                    ),
-                    Resolver = new FuncFieldResolver<QpArticle, IDataLoaderResult<QpArticle>>(context => 
-                    {
-                        var state = GetQpArticleState(context.UserContext);
-                        var loader = dataLoaderAccessor.Context.GetOrAddBatchLoader<int, QpArticle>($"Batch_{contentId}",
-                                            (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>()
-                                                        .GetArticlesByIdList(contentId, contentMeta.Context, ids, state));
-
-                        return loader.LoadAsync(Convert.ToInt32(context.GetArgument<int>("id")));
-                    })
-                });
-                var connectionField = new FieldType
-                {
-                    Name = contentMeta.AliasPlural,
-                    Description = contentMeta.FriendlyName + " - список",
-                    ResolvedType = connectionGraphTypes[contentId],
-                    Arguments = new QueryArguments(
-                        new QueryArgument<IntGraphType> { Name = "skip", Description = "Skips edges before selection" },
-                        new QueryArgument<StringGraphType> { Name = "after", Description = "Only return edges after the specified cursor." },
-                        new QueryArgument<IntGraphType> { Name = "first", Description = "Specifies the maximum number of edges to return, starting after the cursor specified by 'after', or the first number of edges if 'after' is not specified." },
-                        new QueryArgument<StringGraphType> { Name = "before", Description = "Only return edges prior to the specified cursor." },
-                        new QueryArgument<IntGraphType> { Name = "last", Description = "Specifies the maximum number of edges to return, starting prior to the cursor specified by 'before', or the last number of edges if 'before' is not specified." },
-                        new QueryArgument(filterGraphTypes[contentId]) { Name = "filter", Description = "Filter by" }
-                    ),
-                    Resolver = new AsyncFieldResolver<Connection<QpArticle, Edge<QpArticle>>>(async context =>
-                    {
-                        var state = GetQpArticleState(context.UserContext);
-                        var needTotalCount = context.SubFields.Any(f => f.Key == "totalCount");
-                        var relayResult = await context.RequestServices.GetRequiredService<IQpArticlesAccessor>().GetPagedArticles(contentId,
-                                contentMeta.Context,
-                                GetOrderArguments(context), 
-                                GetFilterArguments(context, filterDefinitionsByContentTypes[contentId]),
-                                GetPaginationArguments(context),
-                                needTotalCount,
-                                state);
-                        return ToConnection(relayResult);
-                    })
+                    Name = "Query"
                 };
-                if (orderGraphTypes.ContainsKey(contentId))
-                    connectionField.Arguments.Add(new QueryArgument(orderGraphTypes[contentId]) { Name = "order", Description = "Order by" });
-                rootQuery.AddField(connectionField);
+
+                foreach (var contentId in metadata.Keys)
+                {
+                    var contentMeta = metadata[contentId];
+                    rootQuery.AddField(new FieldType
+                    {
+                        Name = contentMeta.AliasSingular,
+                        Description = contentMeta.FriendlyName + " по id",
+                        ResolvedType = graphTypes[contentId],
+                        Arguments = new QueryArguments(
+                            new QueryArgument<NonNullGraphType<IntGraphType>> { Name = "Id", Description = "id of the article" }
+                        ),
+                        Resolver = new FuncFieldResolver<QpArticle, IDataLoaderResult<QpArticle>>(context =>
+                        {
+                            var state = GetQpArticleState(context.UserContext);
+                            var loader = dataLoaderAccessor.Context.GetOrAddBatchLoader<int, QpArticle>($"Batch_{contentId}",
+                                                (ids) => context.RequestServices.GetRequiredService<IQpArticlesAccessor>()
+                                                            .GetArticlesByIdList(contentId, contentMeta.Context, ids, state));
+
+                            return loader.LoadAsync(Convert.ToInt32(context.GetArgument<int>("id")));
+                        })
+                    });
+                    var connectionField = new FieldType
+                    {
+                        Name = contentMeta.AliasPlural,
+                        Description = contentMeta.FriendlyName + " - список",
+                        ResolvedType = connectionGraphTypes[contentId],
+                        Arguments = new QueryArguments(
+                            new QueryArgument<IntGraphType> { Name = "skip", Description = "Skips edges before selection" },
+                            new QueryArgument<StringGraphType> { Name = "after", Description = "Only return edges after the specified cursor." },
+                            new QueryArgument<IntGraphType> { Name = "first", Description = "Specifies the maximum number of edges to return, starting after the cursor specified by 'after', or the first number of edges if 'after' is not specified." },
+                            new QueryArgument<StringGraphType> { Name = "before", Description = "Only return edges prior to the specified cursor." },
+                            new QueryArgument<IntGraphType> { Name = "last", Description = "Specifies the maximum number of edges to return, starting prior to the cursor specified by 'before', or the last number of edges if 'before' is not specified." },
+                            new QueryArgument(filterGraphTypes[contentId]) { Name = "filter", Description = "Filter by" }
+                        ),
+                        Resolver = new AsyncFieldResolver<Connection<QpArticle, Edge<QpArticle>>>(async context =>
+                        {
+                            var state = GetQpArticleState(context.UserContext);
+                            var needTotalCount = context.SubFields.Any(f => f.Key == "totalCount");
+                            var relayResult = await context.RequestServices.GetRequiredService<IQpArticlesAccessor>().GetPagedArticles(contentId,
+                                    contentMeta.Context,
+                                    GetOrderArguments(context),
+                                    GetFilterArguments(context, filterDefinitionsByContentTypes[contentId]),
+                                    GetPaginationArguments(context),
+                                    needTotalCount,
+                                    state);
+                            return ToConnection(relayResult);
+                        })
+                    };
+                    if (orderGraphTypes.ContainsKey(contentId))
+                        connectionField.Arguments.Add(new QueryArgument(orderGraphTypes[contentId]) { Name = "order", Description = "Order by" });
+                    rootQuery.AddField(connectionField);
+                }
+
+                graphTypes.Values.ToList().ForEach(RegisterType);
+                graphExtensionsTypes.Values.SelectMany(t => t.Values).ToList().ForEach(RegisterType);
+                RegisterType(articleInterface);
+
+                Query = rootQuery;
+
             }
-
-            graphTypes.Values.ToList().ForEach(RegisterType);
-            graphExtensionsTypes.Values.SelectMany(t => t.Values).ToList().ForEach(RegisterType);
-            RegisterType(articleInterface);
-
-            Query = rootQuery;
             Description = "Autogenerated QP contents schema";
 
             _logger.LogInformation("End create schema {schemaId}", Id);

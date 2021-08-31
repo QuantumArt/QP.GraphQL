@@ -5,6 +5,7 @@ using GraphQL.SystemTextJson;
 using GraphQL.Types;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -39,27 +40,69 @@ namespace QP.GraphQL.App
         {
             var start = DateTime.UtcNow;
             var request = await context.Request.Body.FromJsonAsync<GraphQLRequest>(context.RequestAborted);
-            var userContext = GetUserContext(context);
 
-            var result = await _executer.ExecuteAsync(options =>
+            if (request.Query.TrimStart().StartsWith("query IntrospectionQuery") || await ValidateApiKey(context, schema))
             {
-                options.Schema = schema;
-                options.Query = request.Query;
-                options.OperationName = request.OperationName;
-                options.Inputs = request.Variables;
-                options.UserContext = userContext;
-                options.EnableMetrics = _settings.EnableMetrics;
-                options.RequestServices = context.RequestServices;
-                options.CancellationToken = context.RequestAborted;
-                options.Listeners.Add(_dataLoaderDocumentListener);
-            });
+                var userContext = GetUserContext(context);
 
-            if (_settings.EnableMetrics)
+                var result = await _executer.ExecuteAsync(options =>
+                {
+                    options.Schema = schema;
+                    options.Query = request.Query;
+                    options.OperationName = request.OperationName;
+                    options.Inputs = request.Variables;
+                    options.UserContext = userContext;
+                    options.EnableMetrics = _settings.EnableMetrics;
+                    options.RequestServices = context.RequestServices;
+                    options.CancellationToken = context.RequestAborted;
+                    options.Listeners.Add(_dataLoaderDocumentListener);
+                });
+
+                if (_settings.EnableMetrics)
+                {
+                    result.EnrichWithApolloTracing(start);
+                }
+
+                await WriteResponseAsync(context, result, context.RequestAborted, StatusCodes.Status200OK);
+            }
+        }
+
+        private async Task<bool> ValidateApiKey(HttpContext context, ISchema schema)
+        {
+            var error = schema.GetMetadata<string>("ERROR");
+
+            if (error != null)
             {
-                result.EnrichWithApolloTracing(start);
+                var result = GetErrorResult(error);           
+                await WriteResponseAsync(context, result, context.RequestAborted, StatusCodes.Status401Unauthorized);
+                return false;
             }
 
-            await WriteResponseAsync(context, result, context.RequestAborted);
+            var apiKey = schema.GetMetadata<string>("APIKEY");
+            context.Request.Headers.TryGetValue("APIKEY", out StringValues value);
+
+            if (value == apiKey)
+            {
+                return true;
+            }
+            else
+            {
+                var result = GetErrorResult("Invalid API Key");
+                await WriteResponseAsync(context, result, context.RequestAborted, StatusCodes.Status401Unauthorized);
+                return false;
+            }
+        }
+
+        private ExecutionResult GetErrorResult(string error)
+        {
+            var result = new ExecutionResult
+            {
+                Executed = false,
+                Errors = new ExecutionErrors()
+            };
+
+            result.Errors.Add(new ExecutionError(error));
+            return result;
         }
 
         private IDictionary<string, object> GetUserContext(HttpContext context)
@@ -70,10 +113,10 @@ namespace QP.GraphQL.App
             };
         }
 
-        private async Task WriteResponseAsync(HttpContext context, ExecutionResult result, CancellationToken cancellationToken)
+        private async Task WriteResponseAsync(HttpContext context, ExecutionResult result, CancellationToken cancellationToken, int statusCode)
         {
             context.Response.ContentType = "application/json";
-            context.Response.StatusCode = 200; // OK
+            context.Response.StatusCode = statusCode;
 
             await _writer.WriteAsync(context.Response.Body, result, cancellationToken);
         }

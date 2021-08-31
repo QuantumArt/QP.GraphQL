@@ -47,5 +47,11 @@ namespace QP.GraphQL.DAL
                 Value = value
             };
         }
+
+        public string AsBool(bool value)
+        {
+            return value ? "1" : "0";
+        }
+
     }
 }
