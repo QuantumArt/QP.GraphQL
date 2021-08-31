@@ -25,9 +25,6 @@ namespace QP.GraphQL.DAL
 
         public IDictionary<int, QpContentMetadata> GetContentsMetadata(QpPluginMetadata plugin)
         {
-            if (Connection.State != ConnectionState.Open)
-                Connection.Open();
-
             var query = $@"
                 select ca.attribute_id as Id,
                     s.site_id as SiteId,
@@ -77,114 +74,136 @@ namespace QP.GraphQL.DAL
                 left join content_attribute bca on bca.attribute_id = ca.back_related_attribute_id
 			    where pc.isexposed = {QueryService.AsBool(true)} and (pca.ishidden is null or pca.ishidden = {QueryService.AsBool(false)})";
 
-            var command = Connection.CreateCommand();
-            command.CommandText = query;
-            command.CommandType = CommandType.Text;
-
-            var metadataItems = command.ExecuteReader().Parse<QpMetadataItemInternal>();
-            var siteMap = new Dictionary<int, QpSiteMetadata>();
-            var contentMap = new Dictionary<int, QpContentMetadata>();
-
-            foreach (var metadataItem in metadataItems)
+            try
             {
-                QpSiteMetadata site;
-                if (siteMap.ContainsKey(metadataItem.SiteId))
-                {
-                    site = siteMap[metadataItem.SiteId];
-                }
-                else
-                {
-                    site = metadataItem.ToSiteMetadata(true, false, false);
-                    siteMap[metadataItem.SiteId] = site;
-                }
+                if (Connection.State != ConnectionState.Open)
+                    Connection.Open();
 
-                QpContentMetadata content;
-                if (contentMap.ContainsKey(metadataItem.ContentId))
+                var command = Connection.CreateCommand();
+                command.CommandText = query;
+                command.CommandType = CommandType.Text;
+
+                var metadataItems = command.ExecuteReader().Parse<QpMetadataItemInternal>();
+                var siteMap = new Dictionary<int, QpSiteMetadata>();
+                var contentMap = new Dictionary<int, QpContentMetadata>();
+
+                foreach (var metadataItem in metadataItems)
                 {
-                    content = contentMap[metadataItem.ContentId];
-                }
-                else
-                {
-                    content = metadataItem.ToContentMetadata();
-                    content.Site = site;
-                    contentMap[metadataItem.ContentId] = content;
-                }
-
-                var attribute = metadataItem.ToContentAttributeMetadata();
-                attribute.Content = content;
-                content.Attributes.Add(attribute);
-            }
-
-            foreach (var id in contentMap.Keys)
-            {
-                var content = contentMap[id];
-
-                if (!content.HasExtensions)
-                {
-                    var baseRef = content.Attributes.FirstOrDefault(a => a.ClassifierAttributeId.HasValue);
-
-                    if (baseRef != null)
+                    QpSiteMetadata site;
+                    if (siteMap.ContainsKey(metadataItem.SiteId))
                     {
-                        var baseContentId = baseRef.RelatedO2mContentId.Value;
-                        var baseContent = contentMap[baseContentId];
-                        var baseClassifier = baseContent.Attributes.First(a => a.IsClassifier);
+                        site = siteMap[metadataItem.SiteId];
+                    }
+                    else
+                    {
+                        site = metadataItem.ToSiteMetadata(true, false, false);
+                        siteMap[metadataItem.SiteId] = site;
+                    }
 
-                        if (baseRef.ClassifierAttributeId.Value == baseClassifier.Id)
+                    QpContentMetadata content;
+                    if (contentMap.ContainsKey(metadataItem.ContentId))
+                    {
+                        content = contentMap[metadataItem.ContentId];
+                    }
+                    else
+                    {
+                        content = metadataItem.ToContentMetadata();
+                        content.Site = site;
+                        contentMap[metadataItem.ContentId] = content;
+                    }
+
+                    var attribute = metadataItem.ToContentAttributeMetadata();
+                    attribute.Content = content;
+                    content.Attributes.Add(attribute);
+                }
+
+                foreach (var id in contentMap.Keys)
+                {
+                    var content = contentMap[id];
+
+                    if (!content.HasExtensions)
+                    {
+                        var baseRef = content.Attributes.FirstOrDefault(a => a.ClassifierAttributeId.HasValue);
+
+                        if (baseRef != null)
                         {
-                            var duplicates = content.Attributes.Where(a => baseContent.Attributes.Any(ba => ba.SchemaAlias.Equals(a.SchemaAlias, StringComparison.InvariantCultureIgnoreCase)));
+                            var baseContentId = baseRef.RelatedO2mContentId.Value;
+                            var baseContent = contentMap[baseContentId];
+                            var baseClassifier = baseContent.Attributes.First(a => a.IsClassifier);
 
-                            foreach (var d in duplicates)
+                            if (baseRef.ClassifierAttributeId.Value == baseClassifier.Id)
                             {
-                                d.SchemaAlias = $"{content.AliasSingular}_{d.SchemaAlias}";
+                                var duplicates = content.Attributes.Where(a => baseContent.Attributes.Any(ba => ba.SchemaAlias.Equals(a.SchemaAlias, StringComparison.InvariantCultureIgnoreCase)));
+
+                                foreach (var d in duplicates)
+                                {
+                                    d.SchemaAlias = $"{content.AliasSingular}_{d.SchemaAlias}";
+                                }
+
+
+                                baseContent.Extensions.Add(content);
                             }
 
-
-                            baseContent.Extensions.Add(content);
+                            contentMap.Remove(id);
                         }
-
-                        contentMap.Remove(id);
                     }
                 }
+
+                return contentMap;
+            }
+            finally
+            {
+                Connection.Close();
             }
 
-            Connection.Close();
-            return contentMap;
+            
         }
 
         public QpPluginMetadata GetPluginMetadata(string instanceKey)
         {
-            if (Connection.State != ConnectionState.Open)
-                Connection.Open();
+            try
+            {
+                if (Connection.State != ConnectionState.Open)
+                    Connection.Open();
 
-            var instanceKeyParam = QueryService.GetParameter("instance_key", SqlDbType.NVarChar, instanceKey);
-            var command = Connection.CreateCommand();
-            command.CommandType = CommandType.Text;            
-            command.Parameters.Add(instanceKeyParam);
-            command.CommandText = $@"
+                var instanceKeyParam = QueryService.GetParameter("instance_key", SqlDbType.NVarChar, instanceKey);
+                var command = Connection.CreateCommand();
+                command.CommandType = CommandType.Text;
+                command.Parameters.Add(instanceKeyParam);
+                command.CommandText = $@"
                 select id, version
                 from plugin
-                where instance_key = {instanceKeyParam.ParameterName}";            
+                where instance_key = {instanceKeyParam.ParameterName}";
 
-            var metadata = command.ExecuteReader().Parse<QpPluginMetadata>().FirstOrDefault();
-
-            Connection.Close();
-            return metadata;
+                var metadata = command.ExecuteReader().Parse<QpPluginMetadata>().FirstOrDefault();
+                return metadata;
+            }
+            finally
+            {
+                Connection.Close();
+            }
         }
 
         public string GetApiKey(QpPluginMetadata plugin)
         {
-            if (Connection.State != ConnectionState.Open)
-                Connection.Open();
+            try
+            {
+                if (Connection.State != ConnectionState.Open)
+                    Connection.Open();
 
-            var query = $"select apikey from plugin_site_{plugin.Id}";
+                var query = $"select apikey from plugin_site_{plugin.Id}";
 
-            var command = Connection.CreateCommand();
-            command.CommandText = query;
-            command.CommandType = CommandType.Text;
+                var command = Connection.CreateCommand();
+                command.CommandText = query;
+                command.CommandType = CommandType.Text;
 
-            var metadata = command.ExecuteScalar();
-            Connection.Close();
-            return metadata as string;
+                var metadata = command.ExecuteScalar();
+                return metadata as string;
+            }
+            finally
+            {
+                Connection.Close();
+            }
         }
     }
 }
