@@ -107,7 +107,8 @@ namespace QP.GraphQL.App.Schema
                             ResolveType = obj =>
                             {
                                 var article = (QpArticle)obj;
-                                if (article.ExtensionContentId.HasValue)
+
+                                if (article.ExtensionContentId.HasValue && map.ContainsKey(article.ExtensionContentId.Value))
                                 {
                                     return map[article.ExtensionContentId.Value];
                                 }
