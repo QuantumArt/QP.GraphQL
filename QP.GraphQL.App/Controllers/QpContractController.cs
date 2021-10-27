@@ -39,6 +39,38 @@ namespace QP.GraphQL.App.Controllers
                     },
                     new QpPluginField
                     {
+                        Name = "MaxDepth",
+                        Description = "Максимальная глубина запроса",
+                        ValueType = QpPluginValueType.Numeric,
+                        RelationType = QpPluginRelationType.Site,
+                        SortOrder = 5
+                    },
+                    new QpPluginField
+                    {
+                        Name = "MaxComplexity",
+                        Description = "Максимальный коэффициент сложности документа",
+                        ValueType = QpPluginValueType.Numeric,
+                        RelationType = QpPluginRelationType.Site,
+                        SortOrder = 10
+                    },
+                    new QpPluginField
+                    {
+                        Name = "FieldImpact",
+                        Description = "Максимальное число объектов, возвращаемых каждым полем",
+                        ValueType = QpPluginValueType.Numeric,
+                        RelationType = QpPluginRelationType.Site,
+                        SortOrder = 15
+                    },
+                    new QpPluginField
+                    {
+                        Name = "MaxRecursionCount",
+                        Description = "Максимальное количество итераций для обхода узлов дерева",
+                        ValueType = QpPluginValueType.Numeric,
+                        RelationType = QpPluginRelationType.Site,
+                        SortOrder = 20
+                    },
+                    new QpPluginField
+                    {
                         Name = "IsExposed",
                         Description = "Доступность контента в GraphQL API",
                         ValueType = QpPluginValueType.Bool,
