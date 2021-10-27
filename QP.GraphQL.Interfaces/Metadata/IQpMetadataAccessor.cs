@@ -7,7 +7,6 @@ namespace QP.GraphQL.Interfaces.Metadata
     {
         IDictionary<int, QpContentMetadata> GetContentsMetadata(QpPluginMetadata plugin);
         QpPluginMetadata GetPluginMetadata(string instanceKey);
-        string GetApiKey(QpPluginMetadata plugin);
-
+        QpPluginSiteMetadata GetPluginSiteMetadata(QpPluginMetadata plugin);
     }
 }

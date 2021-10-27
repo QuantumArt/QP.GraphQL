@@ -54,8 +54,8 @@ namespace QP.GraphQL.App.Schema
 
             if (error == null)
             {
-                var apikey = metadataAccessor.GetApiKey(plugin);
-                Metadata["APIKEY"] = apikey;
+                var pluginSiteMetadata = metadataAccessor.GetPluginSiteMetadata(plugin);
+                Metadata["PLUGINSITEMETADATA"] = pluginSiteMetadata;
 
                 var metadata = metadataAccessor.GetContentsMetadata(plugin);
                 var graphTypes = new Dictionary<int, IComplexGraphType>();

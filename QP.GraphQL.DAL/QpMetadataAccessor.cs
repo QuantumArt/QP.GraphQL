@@ -184,21 +184,21 @@ namespace QP.GraphQL.DAL
             }
         }
 
-        public string GetApiKey(QpPluginMetadata plugin)
+        public QpPluginSiteMetadata GetPluginSiteMetadata(QpPluginMetadata plugin)
         {
             try
             {
                 if (Connection.State != ConnectionState.Open)
                     Connection.Open();
 
-                var query = $"select apikey from plugin_site_{plugin.Id}";
+                var query = $"select apikey, maxdepth, maxcomplexity, fieldimpact, maxrecursioncount from plugin_site_{plugin.Id}";
 
                 var command = Connection.CreateCommand();
                 command.CommandText = query;
                 command.CommandType = CommandType.Text;
 
-                var metadata = command.ExecuteScalar();
-                return metadata as string;
+                var metadata = command.ExecuteReader().Parse<QpPluginSiteMetadata>().FirstOrDefault();
+                return metadata;
             }
             finally
             {
