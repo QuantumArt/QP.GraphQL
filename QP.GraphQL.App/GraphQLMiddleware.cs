@@ -3,9 +3,11 @@ using GraphQL.DataLoader;
 using GraphQL.Instrumentation;
 using GraphQL.SystemTextJson;
 using GraphQL.Types;
+using GraphQL.Validation.Complexity;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
+using QP.GraphQL.Interfaces.Metadata;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -38,17 +40,36 @@ namespace QP.GraphQL.App
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "ASP.NET Core convention")]
         public async Task Invoke(HttpContext context, ISchema schema)
         {
+            ComplexityConfiguration complexityConfiguration = null;
             var start = DateTime.UtcNow;
             var request = await context.Request.Body.FromJsonAsync<GraphQLRequest>(context.RequestAborted);
+            var pluginSiteMetadata = schema.GetMetadata<QpPluginSiteMetadata>("PLUGINSITEMETADATA");
+            var isIntrospectionQuery =  IsIntrospectionQuery(request);
 
-            if (request.Query.TrimStart().StartsWith("query IntrospectionQuery") || await ValidateApiKey(context, schema))
+            if (isIntrospectionQuery || await ValidateApiKey(context, schema, pluginSiteMetadata))
             {
                 var userContext = GetUserContext(context);
+
+                if (!isIntrospectionQuery)
+                {
+                    complexityConfiguration = new ComplexityConfiguration
+                    {
+                        FieldImpact = pluginSiteMetadata.FieldImpact,
+                        MaxComplexity = pluginSiteMetadata.MaxComplexity,
+                        MaxDepth = pluginSiteMetadata.MaxDepth
+                    };
+
+                    if (pluginSiteMetadata.MaxRecursionCount > 0)
+                    {
+                        complexityConfiguration.MaxRecursionCount = pluginSiteMetadata.MaxRecursionCount;
+                    }
+                }
 
                 var result = await _executer.ExecuteAsync(options =>
                 {
                     options.Schema = schema;
                     options.Query = request.Query;
+                    options.ComplexityConfiguration = complexityConfiguration;
                     options.OperationName = request.OperationName;
                     options.Inputs = request.Variables;
                     options.UserContext = userContext;
@@ -67,7 +88,12 @@ namespace QP.GraphQL.App
             }
         }
 
-        private async Task<bool> ValidateApiKey(HttpContext context, ISchema schema)
+        private bool IsIntrospectionQuery(GraphQLRequest request)
+        {
+            return request.Query.TrimStart().StartsWith("query IntrospectionQuery");
+        }
+
+        private async Task<bool> ValidateApiKey(HttpContext context, ISchema schema, QpPluginSiteMetadata qpPluginSiteMetadata)
         {
             var error = schema.GetMetadata<string>("ERROR");
 
@@ -78,7 +104,7 @@ namespace QP.GraphQL.App
                 return false;
             }
 
-            var apiKey = schema.GetMetadata<string>("APIKEY");
+            var apiKey = qpPluginSiteMetadata.ApiKey;
             context.Request.Headers.TryGetValue("APIKEY", out StringValues value);
 
             if (value == apiKey)
