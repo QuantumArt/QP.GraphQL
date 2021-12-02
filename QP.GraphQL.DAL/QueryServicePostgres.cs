@@ -10,7 +10,7 @@ namespace QP.GraphQL.DAL
 {
     public class QueryServicePostgres : QueryServiceBase, IQueryService
     {
-        public DbParameter GetIdParam(string name, IEnumerable<int> ids)
+        public override DbParameter GetIdParam(string name, IEnumerable<int> ids)
         {
             return new NpgsqlParameter(name, NpgsqlDbType.Array | NpgsqlDbType.Integer)
             {
@@ -18,7 +18,7 @@ namespace QP.GraphQL.DAL
             };
         }
 
-        public string GetIdTable(string name, string alias = "i")
+        public override string GetIdTable(string name, string alias = "i")
         {
             return $"unnest({name}) {alias}(id)";
         }

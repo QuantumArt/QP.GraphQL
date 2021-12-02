@@ -26,6 +26,11 @@ namespace QP.GraphQL.Interfaces.Metadata
                 {
                     ContentId = Id,
                     Alias = a.Alias,
+                    BackwardField = a.RelatedM2oContentId.HasValue ? new FieldContext
+                    {
+                        ContentId = a.RelatedM2oContentId.Value,
+                        Alias = a.RelatedM2oBackwardField
+                    } : null
                 }).ToArray(),
                 Classifier = Attributes.Where(a => a.IsClassifier).Select(a => new FieldContext
                 {

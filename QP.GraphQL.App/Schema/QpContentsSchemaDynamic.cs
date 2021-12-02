@@ -191,23 +191,26 @@ namespace QP.GraphQL.App.Schema
                                     AddFiltersForStringField(filterType, filterDefinitions, attribute);
                                     break;
                                 case "Numeric":
-                                    AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(DecimalGraphType));
+                                    AddFiltersForNumericField<DecimalGraphType>(filterType, filterDefinitions, attribute);                                   
                                     break;
                                 case "Boolean":
-                                    AddSimpleFiltersForField(filterType, filterDefinitions, attribute, typeof(BooleanGraphType));
+                                    AddSimpleFiltersForField<BooleanGraphType>(filterType, filterDefinitions, attribute);
                                     break;
                                 case "Date":
-                                    AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(DateGraphType));
+                                    AddFiltersForNumericField<DateGraphType>(filterType, filterDefinitions, attribute);
                                     break;
                                 case "Time":
-                                    AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(TimeGraphType));
+                                    AddFiltersForNumericField<TimeGraphType>(filterType, filterDefinitions, attribute);
                                     break;
                                 case "DateTime":
-                                    AddFiltersForNumericField(filterType, filterDefinitions, attribute, typeof(DateTimeGraphType));
+                                    AddFiltersForNumericField<DateTimeGraphType>(filterType, filterDefinitions, attribute);
                                     break;
                                 case "Relation":
                                     //TODO: сейчас будет работать только для O2M связей, нет фильтров ни по M2M, ни по M2O. также нет фильтров второго уровня (по какому-то полю из связи o2m)
-                                    AddSimpleFiltersForField(filterType, filterDefinitions, attribute, typeof(IntGraphType));
+                                    AddSimpleFiltersForField<IntGraphType>(filterType, filterDefinitions, attribute);
+                                    break;
+                                case "Relation Many-to-One":
+                                    AddRelationFiltersForField(filterType, filterDefinitions, attribute);
                                     break;
                             }
                         }
@@ -708,53 +711,61 @@ namespace QP.GraphQL.App.Schema
             {
                 Alias = QpSystemFieldsDescriptor.Id.DBName,
                 SchemaAlias = QpSystemFieldsDescriptor.Id.Name,
-                TypeName = "Numeric"
+                TypeName = "Numeric",
+                Required = true
             };
 
-            AddFiltersForNumericField(filterType, filterDefinitions, metadata, typeof(DecimalGraphType));
+            AddFiltersForNumericField<DecimalGraphType>(filterType, filterDefinitions, metadata);
 
             metadata = new QpContentAttributeMetadata
             {
                 Alias = QpSystemFieldsDescriptor.StatusTypeId.DBName,
                 SchemaAlias = QpSystemFieldsDescriptor.StatusTypeId.Name,
-                TypeName = "Numeric"
+                TypeName = "Numeric",
+                Required = true
             };
 
-            AddFiltersForNumericField(filterType, filterDefinitions, metadata, typeof(DecimalGraphType));
+            AddFiltersForNumericField<DecimalGraphType>(filterType, filterDefinitions, metadata);
 
             metadata = new QpContentAttributeMetadata
             {
                 Alias = QpSystemFieldsDescriptor.Created.DBName,
                 SchemaAlias = QpSystemFieldsDescriptor.Created.Name,
-                TypeName = "DateTime"
+                TypeName = "DateTime",
+                Required = true
             };
 
-            AddFiltersForNumericField(filterType, filterDefinitions, metadata, typeof(DateTimeGraphType));
+            AddFiltersForNumericField<DateTimeGraphType>(filterType, filterDefinitions, metadata);
 
             metadata = new QpContentAttributeMetadata
             {
                 Alias = QpSystemFieldsDescriptor.Modified.DBName,
                 SchemaAlias = QpSystemFieldsDescriptor.Modified.Name,
-                TypeName = "DateTime"
+                TypeName = "DateTime",
+                Required = true
             };
 
-            AddFiltersForNumericField(filterType, filterDefinitions, metadata, typeof(DateTimeGraphType));
+            AddFiltersForNumericField<DateTimeGraphType>(filterType, filterDefinitions, metadata);
 
             metadata = new QpContentAttributeMetadata
             {
                 Alias = QpSystemFieldsDescriptor.LastModifiedBy.DBName,
                 SchemaAlias = QpSystemFieldsDescriptor.LastModifiedBy.Name,
-                TypeName = "Numeric"
+                TypeName = "Numeric",
+                Required = true
             };
 
-            AddFiltersForNumericField(filterType, filterDefinitions, metadata, typeof(DecimalGraphType));
+            AddFiltersForNumericField<DecimalGraphType>(filterType, filterDefinitions, metadata);
         }
 
-        private static void AddFiltersForNumericField(InputObjectGraphType<object> filterType, Dictionary<string, QpFieldFilterDefinition> filterDefinitions, QpContentAttributeMetadata attribute, Type graphType)
+        private static void AddFiltersForNumericField<T>(InputObjectGraphType<object> filterType, Dictionary<string, QpFieldFilterDefinition> filterDefinitions, QpContentAttributeMetadata attribute) where T : ScalarGraphType
         {
             var clearedAlias = attribute.SchemaAlias;
+            var graphType = typeof(T);
 
-            AddSimpleFiltersForField(filterType, filterDefinitions, attribute, graphType);
+            AddSimpleFiltersForField<T>(filterType, filterDefinitions, attribute);
+            AddNullFiltersForField(filterType, filterDefinitions, attribute);
+            AddContainsFiltersForField<T>(filterType, filterDefinitions, attribute);
 
             filterType.AddField(new FieldType
             {
@@ -786,6 +797,67 @@ namespace QP.GraphQL.App.Schema
             filterDefinitions[$"{clearedAlias}Le"] = new QpFieldFilterDefinition { QpFieldName = attribute.Alias, QpFieldType = attribute.TypeName, Operator = FilterOperator.LessOrEqual };
         }
 
+        private static void AddRelationFiltersForField(InputObjectGraphType<object> filterType, Dictionary<string, QpFieldFilterDefinition> filterDefinitions, QpContentAttributeMetadata attribute)
+        {
+            var clearedAlias = attribute.SchemaAlias;
+            var graphType = typeof(ListGraphType<IntGraphType>);
+            filterType.AddField(new FieldType
+            {
+                Name = $"{clearedAlias}Contains",
+                Description = $"Filter for articles, where related articles {attribute.Alias} is in value list",
+                Type = graphType
+            });
+            filterDefinitions[$"{clearedAlias}Contains"] = new QpFieldFilterDefinition { QpFieldName = attribute.Alias, QpFieldType = attribute.TypeName, Operator = FilterOperator.Contains };
+            filterType.AddField(new FieldType
+            {
+                Name = $"{clearedAlias}NotContains",
+                Description = $"Filter for articles, where related articles {attribute.Alias} is not in value list",
+                Type = graphType
+            });
+            filterDefinitions[$"{clearedAlias}NotContains"] = new QpFieldFilterDefinition { QpFieldName = attribute.Alias, QpFieldType = attribute.TypeName, Operator = FilterOperator.NotContains };
+        }
+
+        private static void AddContainsFiltersForField<T>(InputObjectGraphType<object> filterType, Dictionary<string, QpFieldFilterDefinition> filterDefinitions, QpContentAttributeMetadata attribute) where T : ScalarGraphType
+        {
+            if (typeof(T) != typeof(DecimalGraphType))
+            {
+                //TODO: Support all types
+                return;
+            }
+
+            var clearedAlias = attribute.SchemaAlias;
+            var graphType = typeof(ListGraphType<T>);
+            filterType.AddField(new FieldType
+            {
+                Name = $"{clearedAlias}In",
+                Description = $"Filter for articles, where {attribute.Alias} is in value list",
+                Type = graphType
+            });
+            filterDefinitions[$"{clearedAlias}In"] = new QpFieldFilterDefinition { QpFieldName = attribute.Alias, QpFieldType = attribute.TypeName, Operator = FilterOperator.In };
+            filterType.AddField(new FieldType
+            {
+                Name = $"{clearedAlias}NotIn",
+                Description = $"Filter for articles, where {attribute.Alias} is not in value list",
+                Type = graphType
+            });
+            filterDefinitions[$"{clearedAlias}NotIn"] = new QpFieldFilterDefinition { QpFieldName = attribute.Alias, QpFieldType = attribute.TypeName, Operator = FilterOperator.NotIn };
+        }
+
+        private static void AddNullFiltersForField(InputObjectGraphType<object> filterType, Dictionary<string, QpFieldFilterDefinition> filterDefinitions, QpContentAttributeMetadata attribute)
+        {
+            if (!attribute.Required)
+            {
+                var clearedAlias = attribute.SchemaAlias;
+                filterType.AddField(new FieldType
+                {
+                    Name = $"{clearedAlias}IsNull",
+                    Description = $"Filter for articles, where {attribute.Alias} is Null",
+                    Type = typeof(BooleanGraphType)
+                });
+                filterDefinitions[$"{clearedAlias}IsNull"] = new QpFieldFilterDefinition { QpFieldName = attribute.Alias, QpFieldType = attribute.TypeName, Operator = FilterOperator.IsNull };
+            }
+        }
+
         private static void AddFiltersForStringField(InputObjectGraphType<object> filterType, Dictionary<string, QpFieldFilterDefinition> filterDefinitions, QpContentAttributeMetadata attribute)
         {
             var clearedAlias = attribute.SchemaAlias;
@@ -803,11 +875,13 @@ namespace QP.GraphQL.App.Schema
                 Type = typeof(StringGraphType)
             });
             filterDefinitions[$"{clearedAlias}NotLike"] = new QpFieldFilterDefinition { QpFieldName = attribute.Alias, QpFieldType = attribute.TypeName, Operator = FilterOperator.NotLike };
+            AddNullFiltersForField(filterType, filterDefinitions, attribute);
         }
 
-        private static void AddSimpleFiltersForField(InputObjectGraphType<object> filterType, Dictionary<string, QpFieldFilterDefinition> filterDefinitions, QpContentAttributeMetadata attribute, Type graphType)
+        private static void AddSimpleFiltersForField<T>(InputObjectGraphType<object> filterType, Dictionary<string, QpFieldFilterDefinition> filterDefinitions, QpContentAttributeMetadata attribute) where T : ScalarGraphType
         {
             var clearedAlias = attribute.SchemaAlias;
+            var graphType = typeof(T);
             filterType.AddField(new FieldType
             {
                 Name = $"{clearedAlias}Eq",

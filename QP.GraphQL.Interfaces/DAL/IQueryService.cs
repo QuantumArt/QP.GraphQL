@@ -10,7 +10,7 @@ namespace QP.GraphQL.Interfaces.DAL
         DbParameter GetIdParam(string name, IEnumerable<int> ids);
         DbParameter GetParameter(string name, SqlDbType type, object value);
         string GetIdTable(string name, string alias = "i");
-        IQueryContext GetQueryContext(QpFieldFilterClause clause);
+        IQueryContext GetQueryContext(QpFieldRelationFilterClause clause);
         string AsBool(bool value);
     }
 }

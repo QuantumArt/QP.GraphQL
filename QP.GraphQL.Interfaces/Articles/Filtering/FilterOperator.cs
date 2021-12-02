@@ -9,6 +9,11 @@
         LessOrEqual,
         LessThan,
         Like,
-        NotLike
+        NotLike,
+        IsNull,
+        In,
+        NotIn,
+        Contains,
+        NotContains
     }
 }

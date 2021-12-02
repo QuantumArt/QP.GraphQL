@@ -12,6 +12,7 @@ namespace QP.GraphQL.DAL
         public string Alias { get; set; }
         public string TypeName { get; set; }
         public int Indexed { get; set; }
+        public int Required { get; set; }
 
         public int? RelatedO2mContentId { get; set; }
         public int? RelatedM2mContentId { get; set; }
@@ -86,6 +87,7 @@ namespace QP.GraphQL.DAL
                 SchemaAlias = this.Alias,
                 TypeName = this.TypeName,
                 Indexed = this.Indexed == 1,
+                Required = this.Required == 1,
                 RelatedO2mContentId = this.RelatedO2mContentId,
                 RelatedM2mContentId = this.RelatedM2mContentId,
                 M2mIsBackward = this.M2mIsBackward,
