@@ -59,7 +59,7 @@ namespace QP.GraphQL.DAL
             IEnumerable<QpFieldFilterClause> where,
             QpArticleState state)
         {
-            var whereContext = BuildWhereContext(where);
+            var whereContext = BuildWhereContext(where, state, rootContext);
 
             if (Connection.State != ConnectionState.Open)
                 await Connection.OpenAsync();
@@ -97,7 +97,7 @@ namespace QP.GraphQL.DAL
             IEnumerable<QpFieldFilterClause> where,
             QpArticleState state)
         {
-            var whereContext = BuildWhereContext(where);
+            var whereContext = BuildWhereContext(where, state, rootContext);
 
             if (Connection.State != ConnectionState.Open)
                 await Connection.OpenAsync();
@@ -128,7 +128,11 @@ namespace QP.GraphQL.DAL
             QpArticleState state)
         {
             string query;
-            var whereContext = BuildWhereContext(where);
+
+
+
+
+            var whereContext = BuildWhereContext(where, state, rootContext);
             var pagingWhereContext = QueryContext.EmptyWhere;
             var contentTable = GetContentTable(state, rootContext);
             var fields = GetContentFields(rootContext);
@@ -463,16 +467,39 @@ namespace QP.GraphQL.DAL
             return new QueryContext(whereClauseBuilder.ToString(), cursorParam);
         }
 
-        private QueryContext BuildWhereContext(IEnumerable<QpFieldFilterClause> where)
+        private QueryContext BuildWhereContext(IEnumerable<QpFieldFilterClause> where, QpArticleState state, RootContext rootContext)
         {
             var actualWhere = where?.Where(w => w.Value != null);
 
             if (actualWhere == null || !actualWhere.Any())
                 return QueryContext.EmptyWhere;
 
-            var contexts = actualWhere.Select(QueryService.GetQueryContext).ToArray();
+            var contexts = actualWhere.Select(w => GetRelationFilterClause(w, state, rootContext))
+                .Select(QueryService.GetQueryContext)
+                .ToArray();
+
             var query = string.Join<IQueryContext>(" and ", contexts);
             return new QueryContext(query, contexts);
+        }
+
+        private static QpFieldRelationFilterClause GetRelationFilterClause(QpFieldFilterClause clause, QpArticleState state, RootContext rootContext)
+        {
+            var field = rootContext.Fields.FirstOrDefault(f => f.BackwardField != null && f.Alias == clause.FilterDefinition.QpFieldName);
+            string table = null;
+
+            if (field != null)
+            {
+                table = GetContentTable(field.BackwardField.ContentId, state);
+            }
+
+            return new QpFieldRelationFilterClause
+            {
+                FilterDefinition = clause.FilterDefinition,
+                Value = clause.Value,
+                BackwardTable = table,
+                BackwardField = field?.BackwardField?.Alias,
+                TableAlias = rootContext.TableALias
+            };
         }
 
         protected static string GetLinkTable(int linkId, QpArticleState state, bool isBackward)

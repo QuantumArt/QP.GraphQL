@@ -9,6 +9,7 @@
         public string SchemaAlias { get; set; }
         public string TypeName { get; set; }
         public bool Indexed { get; set; }
+        public bool Required { get; set; }
 
         public int? RelatedO2mContentId { get; set; }
         public int? RelatedM2mContentId { get; set; }

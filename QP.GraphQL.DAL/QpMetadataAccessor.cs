@@ -40,6 +40,7 @@ namespace QP.GraphQL.DAL
 	                ca.content_id as ContentId,
 	                ca.friendly_name as FriendlyName,
 	                ca.attribute_name as Alias,
+                    ca.required as Required,
 	                at.type_name as TypeName,
                     ca.index_flag as Indexed,
 	                ca.link_id as M2mRelationId,

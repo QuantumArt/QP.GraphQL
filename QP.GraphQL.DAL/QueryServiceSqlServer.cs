@@ -10,7 +10,7 @@ namespace QP.GraphQL.DAL
     {
         private const string IdsTypeName = "Ids";
 
-        public DbParameter GetIdParam(string name, IEnumerable<int> ids)
+        public override DbParameter GetIdParam(string name, IEnumerable<int> ids)
         {
             return new SqlParameter(name, SqlDbType.Structured)
             {
@@ -35,7 +35,7 @@ namespace QP.GraphQL.DAL
             return dt;
         }
 
-        public string GetIdTable(string name, string alias = "i")
+        public override string GetIdTable(string name, string alias = "i")
         {
             return $"{name} {alias}";
         }
