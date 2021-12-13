@@ -484,19 +484,26 @@ namespace QP.GraphQL.DAL
 
         private static QpFieldRelationFilterClause GetRelationFilterClause(QpFieldFilterClause clause, QpArticleState state, RootContext rootContext)
         {
-            var field = rootContext.Fields.FirstOrDefault(f => f.BackwardField != null && f.Alias == clause.FilterDefinition.QpFieldName);
-            string table = null;
+            var field = rootContext.Fields.FirstOrDefault(f => f.Alias == clause.FilterDefinition.QpFieldName);
+            string backwardTable = null;
+            string linkTable = null;
 
-            if (field != null)
+            if (field?.BackwardField != null)
             {
-                table = GetContentTable(field.BackwardField.ContentId, state);
+                backwardTable = GetContentTable(field.BackwardField.ContentId, state);
+            }
+
+            if (field != null && field.M2mIsBackward.HasValue && field.M2mRelationId.HasValue)
+            {
+                linkTable = GetLinkTable(field.M2mRelationId.Value, state, field.M2mIsBackward.Value);
             }
 
             return new QpFieldRelationFilterClause
             {
                 FilterDefinition = clause.FilterDefinition,
                 Value = clause.Value,
-                BackwardTable = table,
+                BackwardTable = backwardTable,
+                LinkTable = linkTable,
                 BackwardField = field?.BackwardField?.Alias,
                 TableAlias = rootContext.TableALias
             };
