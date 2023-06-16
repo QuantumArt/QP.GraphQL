@@ -106,24 +106,13 @@ Application is available on
 
 
 ### 4.2 Docker registry
+#### 4.2.1 Checking the registry
 
-#### 4.2.1 Updating git repository
-For publishing the image with new tag one should push to git a label with corresponding name. Generally it's a product version.
+[Image tags](https://hub.docker.com/r/qpcms/qp-graphql-service/tags).
 
-#### 4.2.2 Running build
-To buld the image and place it to registry one should run the build
-[Images.Backend](https://tfs.dev.qsupport.ru/tfs/QuantumartCollection/QP/_build?definitionId=1535)
-
-#### 4.2.3 Checking the registry
-
-After build finishes the image `qp-graphql-service` must be in registry images list:
-[Docker registry](http://spbdocker03:5000/v2/_catalog).
-Also avaliable image tags can be seen here:
-[Image tags](http://spbdocker03:5000/v2/qp-graphql-service/tags/list).
-
-#### 4.2.3 Running the application
+#### 4.2.1 Running the application
 ```console
-docker run -it -p 8890:80 -e ConnectionStrings__QPConnectionString="{db connection}" -e ConnectionStrings__Type="{db type}" --rm --name=qp-graphql-service spbdocker03:5000/qp-graphql-service:{tag}
+docker run -it -p 8890:80 -e ConnectionStrings__QPConnectionString="{db connection}" -e ConnectionStrings__Type="{db type}" --rm --name=qp-graphql-service qpcms/qp-graphql-service:{tag}
 ```
 where
 * `{tag}` is application version
@@ -132,5 +121,3 @@ where
 
 Application is available on
 [Localhost](http://localhost:8890/ui/playground)
-
-### 4.3 Kubernetis
