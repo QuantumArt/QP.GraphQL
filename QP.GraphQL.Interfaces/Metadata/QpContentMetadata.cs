@@ -26,6 +26,9 @@ namespace QP.GraphQL.Interfaces.Metadata
                 {
                     ContentId = Id,
                     Alias = a.Alias,
+                    M2mIsBackward = a.M2mIsBackward,
+                    M2mRelationId = a.M2mRelationId,
+                    RelatedO2mContentId = a.RelatedO2mContentId,
                     BackwardField = a.RelatedM2oContentId.HasValue ? new FieldContext
                     {
                         ContentId = a.RelatedM2oContentId.Value,

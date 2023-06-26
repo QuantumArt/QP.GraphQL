@@ -55,13 +55,7 @@ namespace QP.GraphQL.DAL
                 var ids = GetIds(rightPart);
                 var param = GetIdParam(GetParamName(clause.FilterDefinition.QpFieldName), ids);
 
-                var query = @$"({op} (
-                    select null
-                    from {clause.BackwardTable} backward
-                    where
-                        {clause.TableAlias}.content_item_id = backward.{clause.BackwardField} and
-                        backward.content_item_id in (select id from {GetIdTable(param.ParameterName)}
-                )))";
+                var query = clause.LinkTable != null ? GetMtMQuery(op, clause, param) : GetMtoQuery(op, clause, param);
 
                 return new QueryContext(query, param);
             }
@@ -71,6 +65,22 @@ namespace QP.GraphQL.DAL
                 return new QueryContext($"({leftPart} {op} {param.ParameterName})", param);
             }
         }
+
+        private string GetMtoQuery(string op, QpFieldRelationFilterClause clause, DbParameter param) => @$"({op} (
+            select null
+            from {clause.BackwardTable} backward
+            where
+                {clause.TableAlias}.content_item_id = backward.{clause.BackwardField} and
+                backward.content_item_id in (select id from {GetIdTable(param.ParameterName)}
+        )))";
+
+        private string GetMtMQuery(string op, QpFieldRelationFilterClause clause, DbParameter param) => @$"({op} (
+            select null
+            from {clause.LinkTable} link
+            where
+                {clause.TableAlias}.content_item_id = link.id and
+                link.linked_id in (select id from {GetIdTable(param.ParameterName)}
+        )))";
 
         private int[] GetIds(object values)
         {
