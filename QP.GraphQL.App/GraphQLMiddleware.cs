@@ -10,8 +10,14 @@ using Microsoft.Extensions.Primitives;
 using QP.GraphQL.Interfaces.Metadata;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using GraphQL.Execution;
+using QA.DotNetCore.Caching.Interfaces;
 
 namespace QP.GraphQL.App
 {
@@ -23,12 +29,15 @@ namespace QP.GraphQL.App
         private readonly IDocumentWriter _writer;
         private readonly DataLoaderDocumentListener _dataLoaderDocumentListener;
 
+        private readonly Regex _multipleSpacesRegex = new("\\s+", RegexOptions.Multiline | RegexOptions.Compiled);
+
         public GraphQLMiddleware(
             RequestDelegate next,
             IOptions<GraphQLSettings> options,
             IDocumentExecuter executer,
             IDocumentWriter writer,
-            DataLoaderDocumentListener dataLoaderDocumentListener)
+            DataLoaderDocumentListener dataLoaderDocumentListener
+        )
         {
             _next = next;
             _settings = options.Value;
@@ -38,11 +47,14 @@ namespace QP.GraphQL.App
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "ASP.NET Core convention")]
-        public async Task Invoke(HttpContext context, ISchema schema)
+        public async Task Invoke(HttpContext context, ISchema schema, ICacheProvider cache)
         {
             ComplexityConfiguration complexityConfiguration = null;
             var start = DateTime.UtcNow;
-            var request = await context.Request.Body.FromJsonAsync<GraphQLRequest>(context.RequestAborted);
+            byte[] bodyBuffer = new byte[context.Request.ContentLength ?? throw new InvalidOperationException("Unknown body size")];
+            _ = await context.Request.Body.ReadAsync(bodyBuffer, context.RequestAborted);
+            string requestString = Encoding.UTF8.GetString(bodyBuffer);
+            var request = requestString.FromJson<GraphQLRequest>();
             var pluginSiteMetadata = schema.GetMetadata<QpPluginSiteMetadata>("PLUGINSITEMETADATA");
             var isIntrospectionQuery =  IsIntrospectionQuery(request);
 
@@ -65,19 +77,16 @@ namespace QP.GraphQL.App
                     }
                 }
 
-                var result = await _executer.ExecuteAsync(options =>
+                string cacheKey = BuildCacheKey(requestString);
+                ExecutionResult result = null;
+                RootExecutionNode cachedData = await cache.GetOrAddAsync(cacheKey, _settings.CacheLifetime, GetData);
+
+                result ??= new()
                 {
-                    options.Schema = schema;
-                    options.Query = request.Query;
-                    options.ComplexityConfiguration = complexityConfiguration;
-                    options.OperationName = request.OperationName;
-                    options.Inputs = request.Variables;
-                    options.UserContext = userContext;
-                    options.EnableMetrics = _settings.EnableMetrics;
-                    options.RequestServices = context.RequestServices;
-                    options.CancellationToken = context.RequestAborted;
-                    options.Listeners.Add(_dataLoaderDocumentListener);
-                });
+                    Executed = true,
+                    Data = cachedData,
+                    Query = request.Query
+                };
 
                 if (_settings.EnableMetrics)
                 {
@@ -85,6 +94,25 @@ namespace QP.GraphQL.App
                 }
 
                 await WriteResponseAsync(context, result, context.RequestAborted, StatusCodes.Status200OK);
+
+                async Task<RootExecutionNode> GetData()
+                {
+                    result = await _executer.ExecuteAsync(options =>
+                    {
+                        options.Schema = schema;
+                        options.Query = request.Query;
+                        options.ComplexityConfiguration = complexityConfiguration;
+                        options.OperationName = request.OperationName;
+                        options.Inputs = request.Variables;
+                        options.UserContext = userContext;
+                        options.EnableMetrics = _settings.EnableMetrics;
+                        options.RequestServices = context.RequestServices;
+                        options.CancellationToken = context.RequestAborted;
+                        options.Listeners.Add(_dataLoaderDocumentListener);
+                    });
+
+                    return (RootExecutionNode)result.Data;
+                }
             }
         }
 
@@ -99,7 +127,7 @@ namespace QP.GraphQL.App
 
             if (error != null)
             {
-                var result = GetErrorResult(error);           
+                var result = GetErrorResult(error);
                 await WriteResponseAsync(context, result, context.RequestAborted, StatusCodes.Status401Unauthorized);
                 return false;
             }
@@ -145,6 +173,14 @@ namespace QP.GraphQL.App
             context.Response.StatusCode = statusCode;
 
             await _writer.WriteAsync(context.Response.Body, result, cancellationToken);
+        }
+
+        private string BuildCacheKey(string request)
+        {
+            const string replacement = " ";
+            string unSpaced = _multipleSpacesRegex.Replace(request, replacement);
+            string lowered = unSpaced.ToLowerInvariant();
+            return string.Join("", SHA1.HashData(Encoding.UTF8.GetBytes(lowered)).Select(x => x.ToString("x2")));
         }
     }
 }
