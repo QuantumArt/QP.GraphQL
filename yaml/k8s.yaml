@@ -16,7 +16,7 @@ spec:
     spec:
       terminationGracePeriodSeconds: 100
       containers:
-      - image: "||registry||/qp-graphql-service:||version||"
+      - image: "||registry||/||image||:||version||"
         name: graphql
         envFrom:
         - configMapRef:
