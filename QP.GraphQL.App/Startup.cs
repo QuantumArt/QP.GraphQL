@@ -17,6 +17,7 @@ using QP.GraphQL.Interfaces.DAL;
 using QP.GraphQL.Interfaces.Metadata;
 using System.Data.Common;
 using System.Text.Json.Serialization;
+using QA.DotNetCore.Caching.Configuration;
 
 namespace QP.GraphQL.App
 {
@@ -66,7 +67,7 @@ namespace QP.GraphQL.App
             // add schema
             services.AddSingleton<TimeGraphType>();
             services.Configure<SchemaSettings>(Configuration);
-            services.AddTransient<QpContentsSchemaDynamic>();   
+            services.AddTransient<QpContentsSchemaDynamic>();
             services.AddSingleton<ISchemaFactory, SchemaFactory>();
             services.AddTransient<ISchema, SchemaDecorator>();
             services.AddTransient<IQpMetadataValidator, QpMetadataValidator>();
@@ -75,6 +76,8 @@ namespace QP.GraphQL.App
             {
                 services.AddHostedService<SchemaBackgroundService>();
             }
+
+            services.TryAddMemoryCacheServices();
 
             // setup cors
             var origins = Configuration.GetSection("CorsOrigins").Get<string[]>();
