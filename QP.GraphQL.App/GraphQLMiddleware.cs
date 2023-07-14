@@ -29,7 +29,7 @@ namespace QP.GraphQL.App
         private readonly IDocumentWriter _writer;
         private readonly DataLoaderDocumentListener _dataLoaderDocumentListener;
 
-        private readonly Regex _multipleSpacesRegex = new("\\s+", RegexOptions.Multiline);
+        private readonly Regex _multipleSpacesRegex = new("\\s+", RegexOptions.Multiline | RegexOptions.Compiled);
 
         public GraphQLMiddleware(
             RequestDelegate next,
