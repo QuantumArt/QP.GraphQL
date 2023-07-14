@@ -29,8 +29,7 @@ namespace QP.GraphQL.App
         private readonly IDocumentWriter _writer;
         private readonly DataLoaderDocumentListener _dataLoaderDocumentListener;
 
-        private readonly Regex _redundantCharactersRegex = new("\\t|\\n|\\\\r\\\\n", RegexOptions.Compiled);
-        private readonly Regex _multipleSpacesRegex = new("[\\s]{2,}", RegexOptions.Compiled);
+        private readonly Regex _multipleSpacesRegex = new("\\s+", RegexOptions.Multiline);
 
         public GraphQLMiddleware(
             RequestDelegate next,
@@ -179,8 +178,7 @@ namespace QP.GraphQL.App
         private string BuildCacheKey(string request)
         {
             const string replacement = " ";
-            string cleaned = _redundantCharactersRegex.Replace(request, replacement);
-            string unSpaced = _multipleSpacesRegex.Replace(cleaned, replacement);
+            string unSpaced = _multipleSpacesRegex.Replace(request, replacement);
             string lowered = unSpaced.ToLowerInvariant();
             return string.Join("", SHA1.HashData(Encoding.UTF8.GetBytes(lowered)).Select(x => x.ToString("x2")));
         }
