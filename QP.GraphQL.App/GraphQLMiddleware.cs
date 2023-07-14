@@ -80,7 +80,7 @@ namespace QP.GraphQL.App
 
                 string cacheKey = BuildCacheKey(requestString);
                 ExecutionResult result = null;
-                RootExecutionNode cachedData = await cache.GetOrAddAsync(cacheKey, TimeSpan.FromMinutes(5), GetData);
+                RootExecutionNode cachedData = await cache.GetOrAddAsync(cacheKey, _settings.CacheLifetime, GetData);
 
                 result ??= new()
                 {
