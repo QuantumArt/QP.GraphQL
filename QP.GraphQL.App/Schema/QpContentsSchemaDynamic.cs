@@ -552,6 +552,11 @@ namespace QP.GraphQL.App.Schema
                     }
                     else if (isM2m)
                     {
+                        if (!attribute.M2mRelationId.HasValue)
+                        {
+                            throw new Exception($"Incorrect relation field metadata. Field id = {attribute.Id}. M2mRelationId is null.");
+                        }
+
                         f = new FieldType
                         {
                             Name = attribute.SchemaAlias,
@@ -573,7 +578,7 @@ namespace QP.GraphQL.App.Schema
                                         relationContentId,
                                         metadata[relationContentId].Context,
                                         ids,
-                                        Convert.ToInt32(context.Source.AllFields[attributeAlias]),
+                                        attribute.M2mRelationId.Value,
                                         isBackward,
                                         orderArgs,
                                         filterArgs,
