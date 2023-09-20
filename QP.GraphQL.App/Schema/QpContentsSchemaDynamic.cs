@@ -206,9 +206,16 @@ namespace QP.GraphQL.App.Schema
                                     AddFiltersForNumericField<DateTimeGraphType>(filterType, filterDefinitions, attribute);
                                     break;
                                 case "Relation":
-                                    //TODO: сейчас будет работать только для O2M связей, нет фильтров ни по M2M, ни по M2O. также нет фильтров второго уровня (по какому-то полю из связи o2m)
+                                    //TODO: Нет фильтров второго уровня (по какому-то полю из связи o2m)
                                     AddSimpleFiltersForField<IntGraphType>(filterType, filterDefinitions, attribute);
-                                    AddRelationFiltersForField(filterType, filterDefinitions, attribute);
+                                    if (attribute.RelatedO2mContentId.HasValue)
+                                    {
+                                        AddContainsFiltersForField<DecimalGraphType>(filterType, filterDefinitions, attribute);
+                                    }
+                                    else
+                                    {
+                                        AddRelationFiltersForField(filterType, filterDefinitions, attribute);
+                                    }
                                     break;
                                 case "Relation Many-to-One":
                                     AddRelationFiltersForField(filterType, filterDefinitions, attribute);
