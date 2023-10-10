@@ -18,6 +18,9 @@ spec:
       containers:
       - image: "||registry||/||image||:||version||"
         name: graphql
+        env:
+        - name: EnableGraphqlUI
+          value: "true"
         envFrom:
         - configMapRef:
             name: graphql-config
