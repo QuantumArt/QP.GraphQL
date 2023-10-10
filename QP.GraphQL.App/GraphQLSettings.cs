@@ -7,5 +7,6 @@ namespace QP.GraphQL.App
         public bool EnableMetrics { get; set; }
         public bool ExposeExceptions { get; set; }
         public TimeSpan CacheLifetime { get; set; } = TimeSpan.FromMinutes(5);
+        public bool EnableGraphqlUI { get; set; }
     }
 }

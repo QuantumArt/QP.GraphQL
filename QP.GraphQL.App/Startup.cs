@@ -124,10 +124,15 @@ namespace QP.GraphQL.App
             //Warm up the listener
             app.ApplicationServices.GetService<SqlClientListener>();
 
-            app.UseGraphQLPlayground();
-            app.UseGraphQLVoyager();
-            app.UseGraphQLAltair();
-            app.UseGraphQLGraphiQL();
+            IOptions<GraphQLSettings> settings = app.ApplicationServices.GetRequiredService<IOptions<GraphQLSettings>>();
+
+            if (settings.Value.EnableGraphqlUI)
+            {
+                app.UseGraphQLPlayground();
+                app.UseGraphQLVoyager();
+                app.UseGraphQLAltair();
+                app.UseGraphQLGraphiQL();
+            }
 
             app.UseRouting();
             app.UseCors();
